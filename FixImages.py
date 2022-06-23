@@ -2,7 +2,7 @@
 import os, fnmatch, subprocess, shutil, zipfile
 from zipfile import ZipFile
 
-def decompressPLZs(directory): # this function decompresses all PLZs in given directory into same directory
+def fixTheFiles(directory): # this function decompresses all PLZs in given directory into same directory
     
     temp_directory = os.path.abspath(directory + "/FixImages_temp") # define temporary directory name
     new_png_directory = os.path.abspath(temp_directory + "/new_png") # define new_png temporary directory name
@@ -85,7 +85,7 @@ print("and can be deleted after this process.")
 
 directory = input("Enter directory containing png and svg files:")
 directory = directory.replace('\\', '/') # replace backslashes with forward slashes
-decompressPLZs(directory)
+fixTheFiles(directory)
 
 
 print("GOODBYE!")
