@@ -1,22 +1,36 @@
 #!/usr/local/bin/python
 import os, fnmatch, subprocess, sys
 
-def findReplace(directory, find, replace):
+# =====================================================================================================================
+# FUNCTIONS:
+# =====================================================================================================================
+def findReplace(directory, find, replace): # this function takes directory path, string to find, and string to replace with, as parameters
     filePattern = "*.svg"
-    for path, dirs, files in os.walk(os.path.abspath(directory)):
-        for filename in fnmatch.filter(files, filePattern):
-            filepath = os.path.join(path, filename)
+    for path, dirs, files in os.walk(os.path.abspath(directory)): # walk through directory and file structure in predefined path to find files
+        for filename in fnmatch.filter(files, filePattern): # iterate through only the file that match specified extension
+            filepath = os.path.join(path, filename) # join path and filename to get absolute file path
             with open(filepath) as f:
-                s = f.read()
-            s = s.replace(find, replace)
+                s = f.read() # open the file
+            s = s.replace(find, replace) # replace instances of 'find' string with 'replace' string
             with open(filepath, "w") as f:
-                f.write(s)
+                f.write(s) # close the file
 
-def mogrify(directory):
-    process = subprocess.Popen(f'mogrify -path C:/new_png -format png {directory}/*.svg', # shell command is: mogrify -path C:\new_png -format png *.svg
+def mogrify(directory): # this function runs mogrify to write the svg (with embedded png) as new raster image
+                        # IMPORTANT: IT'S ASSUMED THAT MOGRIFY (PART OF IMAGEMAGICK) IS ALREADY INSTALLED!!!
+    process = subprocess.Popen(f'mogrify -path C:/new_png -format png {directory}/*.svg', # run the shell command
                            shell=True, stdout=subprocess.PIPE)
-    process.wait()
+    process.wait() # wait for process to finish in current thread before proceeding
 
+# =====================================================================================================================
+# =====================================================================================================================
+
+
+
+
+
+# =====================================================================================================================
+# MAIN PROGRAM BODY
+# =====================================================================================================================
 print("Welcome to Documoto image fixer!")
 print("This is an application to embed Documoto callout bubbles onto the source raster images.")
 print("First, extract the svg and png files from plz archives into desired directory.")
