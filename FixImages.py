@@ -48,14 +48,14 @@ def fixTheFiles(directory): # this function decompresses all PLZs in given direc
     print(f"PLZ archives have been extracted into {temp_directory}!")
     print("")
 
-    # now that all files are extracted, let's find and replace
+    # now that all files are extracted, let's find and replace in the svg files to prepare them for overlaying onto rasters (these modified SVGs will eventually be discarded)
     for path, dirs, files in os.walk(os.path.abspath(temp_directory)): # walk through temp_directory to find files
         for svgFileName in fnmatch.filter(files, "*.svg"): # iterate through only the file that match specified extension
             svgFilePath = os.path.join(path, svgFileName) # join path and filename to get absolute file path
             with open(svgFilePath) as f:
                 s = f.read() # open the file
-            s = s.replace('stroke=\"#FFFFFF\" stroke-width=\"2\" ', '') # find and replace
-            s = s.replace('<text', '<text font-size=\"36px\" dy=\"9px\"') # find and replace
+            s = s.replace('stroke=\"#FFFFFF\" stroke-width=\"2\" ', '') # find and replace (callout bubble white outline)
+            s = s.replace('<text', '<text font-size=\"36px\" dy=\"9px\"') # find and replace (callout text size and alignment)
             with open(svgFilePath, "w") as f:
                 f.write(s) # close the file
             print(f"performing find-and-replace on {svgFileName}...")
@@ -179,5 +179,9 @@ while not isValidDirectory:
 
 fixTheFiles(directory) # FIX THE FILES!
 
+
+print("============================================")
+print("DON'T FORGET TO FIX SN PREFIXES AS NEEDED!!!")
+print("============================================")
 
 print("GOODBYE!")
