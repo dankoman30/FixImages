@@ -17,7 +17,12 @@ def isExcluded(plzFileName):
 def fixTheFiles(directory): # this function decompresses all PLZs in given directory into same directory
     
     temp_directory = os.path.abspath(directory + "/FixImages_temp") # define temporary directory name
-    new_png_directory = os.path.abspath(temp_directory + "/new_png") # define new_png temporary directory name
+    new_file_directory = os.path.abspath(temp_directory + "/new_files") # define new_file temporary directory name
+    if not os.path.exists(new_file_directory):
+        print("")
+        print(f'creating directory {new_file_directory} for temporary storage of new files.')
+        print("")
+        os.makedirs(new_file_directory) # create new directory (because mogrify is dumb and can't create one itself)
 
     # Extract all the contents of zip file in temporary subdirectory
     for path, dirs, files in os.walk(os.path.abspath(directory)): # walk through directory and file structure in predefined path to find files
@@ -40,13 +45,64 @@ def fixTheFiles(directory): # this function decompresses all PLZs in given direc
                 continue # continue to next iteration of this loop, skipping this file
             zf.close()
 
-
             with ZipFile(plzFilePath, 'r') as archive:
                 archive.extractall(temp_directory)
                 print(f"extracting {plzFileName}...")
         break # prevent descending into subfolders
     print(f"PLZ archives have been extracted into {temp_directory}!")
     print("")
+
+    SNreplace = input("Replace SN00 with PN00? Type YES to replace: ")
+    print("")
+
+    # MODIFY XML and move to new file directory
+    for path, dirs, files in os.walk(os.path.abspath(temp_directory)): # walk through temp_directory to find files
+        for xmlFileName in fnmatch.filter(files, "*.xml"): # iterate through only the file that match specified extension
+            xmlFilePath = os.path.join(path, xmlFileName) # join path and filename to get absolute file path
+
+            # get page title from filename (last element of space-delimited filename prior to extension)
+            pageTitleWithUnderscores = xmlFileName.replace('.xml', '') # start by removing file extension
+            pageTitleWithUnderscores = pageTitleWithUnderscores.replace('  ', ' ') # replace double spaces with single spaces
+            splitChar = ' ' # define the delimiter
+            listOfValues = pageTitleWithUnderscores.split(splitChar) # create list of values
+            if len(listOfValues) > 0: # check for zero length
+                pageTitleWithUnderscores = listOfValues[-1] # get last index of list and set pageTitle equal to it
+            else:
+                break # break the loop if zero length list
+
+            # build string we want to replace in the xml
+            oldNameAttribute = xmlFileName.replace(' ' + pageTitleWithUnderscores + '.xml', '') # remove final space, page title, and file extension from the xml file name to get the old name attribute value
+            stringToFind = '<Translation locale=\"en_US\" name=\"' + oldNameAttribute + '\" description=\"\"/>'
+
+            # build replacement string
+            pageTitleWithSpaces = pageTitleWithUnderscores.replace('_', ' ') # replace underscores with spaces
+            replacementString = '<Translation locale=\"en_US\" name=\"' + pageTitleWithSpaces + '\" description=\"' + pageTitleWithSpaces + '\"/>'
+            
+            with open(xmlFilePath) as f:
+                s = f.read() # open the file
+            s = s.replace(stringToFind, replacementString) # find and replace
+            print("")
+            print(f'in {xmlFileName}, replacing:\n{stringToFind}\nwith:\n{replacementString}') # notify user
+            print("")
+
+            # replace SN00 with PN00 if preference is selected:
+            if SNreplace.upper() == "YES":
+                s = s.replace('SN00', 'PN00') # find and replace
+                print("")
+                print("replacing instances of SN00 with PN00 in BOM")
+                print("")
+
+            with open(xmlFilePath, "w") as f:
+                f.write(s) # close the file
+
+            # move modified xml to new file directory
+            newXmlFilePath = os.path.join(new_file_directory, xmlFileName)
+            shutil.move(xmlFilePath, newXmlFilePath)
+            print(f'moving\n{xmlFilePath}\nto\n{newXmlFilePath}')
+            
+        break # prevent descending into subfolders
+        print("find-and-replace complete!")
+        print("")
 
     # now that all files are extracted, let's find and replace in the svg files to prepare them for overlaying onto rasters (these modified SVGs will eventually be discarded)
     for path, dirs, files in os.walk(os.path.abspath(temp_directory)): # walk through temp_directory to find files
@@ -64,19 +120,13 @@ def fixTheFiles(directory): # this function decompresses all PLZs in given direc
         print("")
 
     # now we need to mogrify
-    if not os.path.exists(new_png_directory):
-        print("")
-        print(f'creating directory {new_png_directory} for temporary storage of new PNG files.')
-        print("")
-        os.makedirs(new_png_directory) # create new directory (because mogrify is dumb and can't create one itself)
-
-    process = subprocess.Popen(f'mogrify -path {new_png_directory} -format png {temp_directory}/*.svg', # run the shell command
+    process = subprocess.Popen(f'mogrify -path {new_file_directory} -format png {temp_directory}/*.svg', # run the shell command
                            shell=True, stdout=subprocess.PIPE)
     process.wait() # wait for process to finish in current thread before proceeding
-    print(f"newly-generated PNGs are located in {new_png_directory}!")
+    print(f"newly-generated PNGs are located in {new_file_directory}!")
     print("")
 
-    # we need to remove the original png source images from the plz archives to avoid duplication
+    # we need to remove the original png and xml files from the plz archives to avoid duplication
     for path, dirs, files in os.walk(os.path.abspath(directory)): # walk through directory and file structure in predefined path to find files
         for plzFileName in fnmatch.filter(files, "*.plz"): # iterate through only the file that match plz file extension
             if isExcluded(plzFileName): # check to see if plz file is in excluded list, before doing anything else
@@ -89,19 +139,19 @@ def fixTheFiles(directory): # this function decompresses all PLZs in given direc
             zout = zipfile.ZipFile(new_filepath, 'w') # new file
             for item in zin.infolist():
                 buffer = zin.read(item.filename)
-                if (item.filename[-4:] != '.png'): # write all except png files to new archive
+                if ((item.filename[-4:] != '.png') and (item.filename[-4:] != '.xml')): # write all except png amd xml files to new archive
                     zout.writestr(item, buffer)
             zout.close() # close files
             zin.close() # close files
             os.remove(old_filepath) # delete old file
             os.rename(new_filepath, old_filepath) # rename new file to old filename
-            print(f"removing source PNG from original archive {plzFileName}")
+            print(f"removing source png and xml files from original archive {plzFileName}")
         break # prevent descending into subfolders
-        print("source PNG removal from original PLZ archives is complete!")
+        print("source PNG and XML removal from original PLZ archives is complete!")
         print("")
 
 
-    # now we need to re-pack the new png files into their original archives
+    # now we need to re-pack the new png and xml files into their original archives
     for path, dirs, files in os.walk(os.path.abspath(directory)): # walk through directory and file structure in predefined path to find files
         for plzFileName in fnmatch.filter(files, "*.plz"): # iterate through only the file that match plz file extension
             if isExcluded(plzFileName): # check to see if plz file is in excluded list, before doing anything else
@@ -109,18 +159,22 @@ def fixTheFiles(directory): # this function decompresses all PLZs in given direc
 
             plzFilePath = os.path.join(path, plzFileName) # join path and filename to get absolute file path
             pngFileName = plzFileName.replace('.plz', '.png')
-            pngFilePath = os.path.join(new_png_directory, pngFileName) # remove last 3 characters from plz file path (.plz) to get base filename (no extension).
-                                                                       # Then, append "png" to it to get the png file path (after joining with new_png_directory path)
+            pngFilePath = os.path.join(new_file_directory, pngFileName) # remove last 3 characters from plz file path (.plz) to get base filename (no extension).
+                                                                       # Then, append "png" to it to get the png file path (after joining with new_file_directory path)
+            xmlFileName = plzFileName.replace('.plz', '.xml')
+            xmlFilePath = os.path.join(new_file_directory, xmlFileName) # remove last 3 characters from plz file path (.plz) to get base filename (no extension).
+                                                                       # Then, append "xml" to it to get the xml file path (after joining with new_file_directory path)
             print("")
-            print(f"re-packing new PNG into archive {plzFileName}")
+            print(f"re-packing new PNG and XML into archive {plzFileName}")
             print("ARCHIVE CONTENTS:")
             with ZipFile(plzFilePath, 'a') as archive: # append
                 archive.write(pngFilePath, arcname=pngFileName) # write the new png file to the archive
+                archive.write(xmlFilePath, arcname=xmlFileName) # write the new xml file to the archive
                 archive.printdir()
 
         break # prevent descending into subfolders
         print("")
-        print("PNG re-packing is completed!")
+        print("PNG and XML re-packing is completed!")
         print("")
 
     # clean up (delete temporary directory)
