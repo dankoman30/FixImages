@@ -52,7 +52,7 @@ def fixTheFiles(directory): # this function decompresses all PLZs in given direc
     print(f"PLZ archives have been extracted into {temp_directory}!")
     print("")
 
-    SNreplace = input("Replace SN00 with PN00? Type YES to replace: ")
+    SNreplace = input("Replace SN0 with PN0? Type YES to replace: ")
     print("")
 
     # MODIFY XML and move to new file directory
@@ -85,11 +85,11 @@ def fixTheFiles(directory): # this function decompresses all PLZs in given direc
             print(f'in {xmlFileName}, replacing:\n{stringToFind}\nwith:\n{replacementString}') # notify user
             print("")
 
-            # replace SN00 with PN00 if preference is selected:
+            # replace SN0 with PN0 if preference is selected:
             if SNreplace.upper() == "YES":
-                s = s.replace('SN00', 'PN00') # find and replace
+                s = s.replace('SN0', 'PN0') # find and replace
                 print("")
-                print("replacing instances of SN00 with PN00 in BOM")
+                print("replacing instances of SN0 with PN0 in BOM")
                 print("")
 
             with open(xmlFilePath, "w") as f:
