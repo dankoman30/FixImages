@@ -235,7 +235,6 @@ fixTheFiles(directory) # FIX THE FILES!
 
 
 print("============================================")
-print("DON'T FORGET TO FIX SN PREFIXES AS NEEDED!!!")
+print("                 GOODBYE!")
 print("============================================")
 
-print("GOODBYE!")
