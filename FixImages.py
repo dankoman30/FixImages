@@ -2,7 +2,22 @@
 import os, fnmatch, subprocess, shutil, zipfile
 from zipfile import ZipFile
 
-exclude_list = []
+import requests, http.client
+from dotenv import load_dotenv
+
+# REST API STUFF
+publishToDocumoto = True # default to true (can make this a preference later)
+load_dotenv()
+DOCUMOTO_API_ENDPOINT_URL = "https://integration.digabit.com/api/ext/publishing/upload/v1?submitForPublishing=true" # documoto integration URL
+DOCUMOTO_API_KEY = os.environ.get('DOCUMOTO_API_KEY') # API key is stored in DOCUMOTO_API_KEY env variable
+
+headers = {
+    'Content-Type': 'multipart/form-data',
+    'Accept': 'text/plain',
+    'Authorization': DOCUMOTO_API_KEY # store api key in headers dictionary with key "Authorization" as required by documoto REST API
+}
+
+exclude_list = [] # initialize exclude_list as new empty list
 
 def isExcluded(plzFileName):
     if plzFileName in exclude_list: # check exclude list for the PLZ filename
@@ -171,6 +186,15 @@ def fixTheFiles(directory): # this function decompresses all PLZs in given direc
                 archive.write(pngFilePath, arcname=pngFileName) # write the new png file to the archive
                 archive.write(xmlFilePath, arcname=xmlFileName) # write the new xml file to the archive
                 archive.printdir()
+
+            # publish to tenant?
+            if publishToDocumoto:
+                with open(plzFilePath, 'rb') as f:
+                    payload = f.read()
+                response = requests.request("POST", DOCUMOTO_API_ENDPOINT_URL, headers = headers, data = payload)
+                print("PUBLISHING...")
+                print("RESPONSE - Code " + str(response.status_code) + ": " + http.client.responses[response.status_code]) # convert response code to description and output to console
+                print(response.text)
 
         break # prevent descending into subfolders
         print("")
