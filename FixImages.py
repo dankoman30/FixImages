@@ -191,6 +191,7 @@ def fixTheFiles(directory): # this function decompresses all PLZs in given direc
 
             # publish to tenant?
             if publishToDocumoto:
+                print("PUBLISHING...")
 
                 # filesToUpload = {('file', (open(plzFilePath, 'rb'), 'application/octet-stream'))}     # returns "TypeError: expected string or bytes-like object"
                 filesToUpload = {'file': (plzFileName, open(plzFilePath, 'rb'), 'application/octet-stream')} # use filename as first parameter of 3-tuple
@@ -204,7 +205,6 @@ def fixTheFiles(directory): # this function decompresses all PLZs in given direc
                 body_len = len(response.request.body if response.request.body else [])
                 print(f'Request size {method_len + url_len + headers_len + body_len}')
 
-                print("PUBLISHING...")
                 print("RESPONSE - Code " + str(response.status_code) + ": " + http.client.responses[response.status_code]) # convert response code to description and output to console
                 print(response.text)
 
