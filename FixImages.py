@@ -66,9 +66,6 @@ def fixTheFiles(directory): # this function decompresses all PLZs in given direc
     print(f"PLZ archives have been extracted into {temp_directory}!")
     print("")
 
-    SNreplace = input("Replace SN0 with PN0? Type YES to replace: ").upper() == "YES"
-    print("")
-
     # MODIFY XML and move to new file directory
     for path, dirs, files in os.walk(os.path.abspath(temp_directory)): # walk through temp_directory to find files
         for xmlFileName in fnmatch.filter(files, "*.xml"): # iterate through only the file that match specified extension
@@ -168,8 +165,6 @@ def fixTheFiles(directory): # this function decompresses all PLZs in given direc
 
 
     # now we need to re-pack the new png and xml files into their original archives
-    publishToDocumoto = input("Publish the new PLZs to Documoto? Type YES to publish pages: ").upper() == "YES"
-
     for path, dirs, files in os.walk(os.path.abspath(directory)): # walk through directory and file structure in predefined path to find files
         for plzFileName in fnmatch.filter(files, "*.plz"): # iterate through only the file that match plz file extension
             if isExcluded(plzFileName): # check to see if plz file is in excluded list, before doing anything else
@@ -214,18 +209,20 @@ def fixTheFiles(directory): # this function decompresses all PLZs in given direc
         break # prevent descending into subfolders
 
     # clean up (delete temporary directory)
-    print("")
-    print("PROCESS IS COMPLETE!!!")
-    print("")
-    cleanup = input("Cleanup temporary files? Type YES to delete: ")
-    print("")
-    if cleanup.upper() == "YES":
+    if cleanup:
         shutil.rmtree(temp_directory)
         print(f"deleting temp directory {temp_directory}")
         print("")
     else:
         print(f"keeping temporary directory! files are located in {temp_directory}")
         print("")
+
+
+    print("")
+    print("PROCESS IS COMPLETE!!!")
+    print("")
+
+    # report exlusion list
     if len(exclude_list) != 0:
         print("***** WARNING *****")
         print("the following PLZ files have been skipped:")
@@ -247,8 +244,8 @@ print("The directory entered below must include documoto package files (plz).")
 print("Files will be extracted, modifications made, and repackaged into the original archives.")
 print("")
 
+# preferences
 isValidDirectory = False
-
 while not isValidDirectory:
     directory = input("Enter full directory containing the plz files: ")
     directory = directory.replace('\\', '/') # replace backslashes with forward slashes
@@ -266,9 +263,15 @@ while not isValidDirectory:
         print(f"{directory} is not a valid path.")
         print("Please try again!")
         print("")
+SNreplace = input("Replace instances of SN0 with PN0 in the BOM trees? Type YES to replace: ").upper() == "YES"
+print("")
+publishToDocumoto = input("Publish the new PLZ pages to Documoto? Type YES to publish: ").upper() == "YES"
+print("")
+cleanup = input("Cleanup temporary files after repackaging archives? Type YES to delete: ").upper() == "YES"
+print("")
+
 
 fixTheFiles(directory) # FIX THE FILES!
-
 
 print("============================================")
 print("                 GOODBYE!")
