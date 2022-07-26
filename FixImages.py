@@ -115,9 +115,9 @@ def fixTheFiles(directory): # this function decompresses all PLZs in given direc
             shutil.move(xmlFilePath, newXmlFilePath)
             print(f'moving\n{xmlFilePath}\nto\n{newXmlFilePath}')
             
-        break # prevent descending into subfolders
         print("find-and-replace complete!")
         print("")
+        break # prevent descending into subfolders
 
     # now that all files are extracted, let's find and replace in the svg files to prepare them for overlaying onto rasters (these modified SVGs will eventually be discarded)
     for path, dirs, files in os.walk(os.path.abspath(temp_directory)): # walk through temp_directory to find files
@@ -130,9 +130,10 @@ def fixTheFiles(directory): # this function decompresses all PLZs in given direc
             with open(svgFilePath, "w") as f:
                 f.write(s) # close the file
             print(f"performing find-and-replace on {svgFileName}...")
-        break # prevent descending into subfolders
+        
         print("find-and-replace complete!")
         print("")
+        break # prevent descending into subfolders
 
     # now we need to mogrify
     process = subprocess.Popen(f'mogrify -path {new_file_directory} -format png {temp_directory}/*.svg', # run the shell command
@@ -161,9 +162,10 @@ def fixTheFiles(directory): # this function decompresses all PLZs in given direc
             os.remove(old_filepath) # delete old file
             os.rename(new_filepath, old_filepath) # rename new file to old filename
             print(f"removing source png and xml files from original archive {plzFileName}")
-        break # prevent descending into subfolders
+        
         print("source PNG and XML removal from original PLZ archives is complete!")
         print("")
+        break # prevent descending into subfolders
 
 
     # now we need to re-pack the new png and xml files into their original archives
@@ -206,10 +208,10 @@ def fixTheFiles(directory): # this function decompresses all PLZs in given direc
                 print("RESPONSE - Code " + str(response.status_code) + ": " + http.client.responses[response.status_code]) # convert response code to description and output to console
                 print(response.text)
 
-        break # prevent descending into subfolders
         print("")
         print("PNG and XML re-packing is completed!")
         print("")
+        break # prevent descending into subfolders
 
     # clean up (delete temporary directory)
     print("")
