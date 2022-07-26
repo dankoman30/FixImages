@@ -12,7 +12,7 @@ DOCUMOTO_API_ENDPOINT_URL = "https://integration.digabit.com/api/ext/publishing/
 DOCUMOTO_API_KEY = os.environ.get('DOCUMOTO_API_KEY') # API key is stored in DOCUMOTO_API_KEY env variable
 
 headers = {
-    'Content-Type': 'multipart/form-data',
+    # 'Content-Type': 'multipart/form-data', # comment this out to let requests handle type definition
     'Accept': 'text/plain',
     'Authorization': DOCUMOTO_API_KEY # store api key in headers dictionary with key "Authorization" as required by documoto REST API
 }
@@ -189,9 +189,19 @@ def fixTheFiles(directory): # this function decompresses all PLZs in given direc
 
             # publish to tenant?
             if publishToDocumoto:
-                with open(plzFilePath, 'rb') as f:
-                    payload = f.read()
-                response = requests.request("POST", DOCUMOTO_API_ENDPOINT_URL, headers = headers, data = payload)
+
+                # filesToUpload = {('file', (open(plzFilePath, 'rb'), 'application/octet-stream'))}     # returns "TypeError: expected string or bytes-like object"
+                filesToUpload = {'file': (plzFileName, open(plzFilePath, 'rb'), 'application/octet-stream')} # use filename as first parameter of 3-tuple
+
+                response = requests.request('POST', DOCUMOTO_API_ENDPOINT_URL, headers = headers, files = filesToUpload)
+
+                # print request size
+                method_len = len(response.request.method)
+                url_len = len(response.request.url)
+                headers_len = len('\r\n'.join('{}{}'.format(k, v) for k, v in response.request.headers.items()))
+                body_len = len(response.request.body if response.request.body else [])
+                print(f'Request size {method_len + url_len + headers_len + body_len}')
+
                 print("PUBLISHING...")
                 print("RESPONSE - Code " + str(response.status_code) + ": " + http.client.responses[response.status_code]) # convert response code to description and output to console
                 print(response.text)
