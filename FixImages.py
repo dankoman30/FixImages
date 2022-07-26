@@ -6,7 +6,6 @@ import requests, http.client
 from dotenv import load_dotenv
 
 # REST API STUFF
-publishToDocumoto = True # default to true (can make this a preference later)
 load_dotenv()
 DOCUMOTO_API_ENDPOINT_URL = "https://integration.digabit.com/api/ext/publishing/upload/v1?submitForPublishing=true" # documoto integration URL
 DOCUMOTO_API_KEY = os.environ.get('DOCUMOTO_API_KEY') # API key is stored in DOCUMOTO_API_KEY env variable
@@ -67,7 +66,7 @@ def fixTheFiles(directory): # this function decompresses all PLZs in given direc
     print(f"PLZ archives have been extracted into {temp_directory}!")
     print("")
 
-    SNreplace = input("Replace SN0 with PN0? Type YES to replace: ")
+    SNreplace = input("Replace SN0 with PN0? Type YES to replace: ").upper() == "YES"
     print("")
 
     # MODIFY XML and move to new file directory
@@ -101,7 +100,7 @@ def fixTheFiles(directory): # this function decompresses all PLZs in given direc
             print("")
 
             # replace SN0 with PN0 if preference is selected:
-            if SNreplace.upper() == "YES":
+            if SNreplace:
                 s = s.replace('SN0', 'PN0') # find and replace
                 print("")
                 print("replacing instances of SN0 with PN0 in BOM")
@@ -169,6 +168,8 @@ def fixTheFiles(directory): # this function decompresses all PLZs in given direc
 
 
     # now we need to re-pack the new png and xml files into their original archives
+    publishToDocumoto = input("Publish the new PLZs to Documoto? Type YES to publish pages: ").upper() == "YES"
+
     for path, dirs, files in os.walk(os.path.abspath(directory)): # walk through directory and file structure in predefined path to find files
         for plzFileName in fnmatch.filter(files, "*.plz"): # iterate through only the file that match plz file extension
             if isExcluded(plzFileName): # check to see if plz file is in excluded list, before doing anything else
@@ -188,12 +189,11 @@ def fixTheFiles(directory): # this function decompresses all PLZs in given direc
                 archive.write(pngFilePath, arcname=pngFileName) # write the new png file to the archive
                 archive.write(xmlFilePath, arcname=xmlFileName) # write the new xml file to the archive
                 archive.printdir()
-
+                
             # publish to tenant?
             if publishToDocumoto:
                 print("PUBLISHING...")
 
-                # filesToUpload = {('file', (open(plzFilePath, 'rb'), 'application/octet-stream'))}     # returns "TypeError: expected string or bytes-like object"
                 filesToUpload = {'file': (plzFileName, open(plzFilePath, 'rb'), 'application/octet-stream')} # use filename as first parameter of 3-tuple
 
                 response = requests.request('POST', DOCUMOTO_API_ENDPOINT_URL, headers = headers, files = filesToUpload)
