@@ -96,13 +96,6 @@ def fixTheFiles(directory): # this function decompresses all PLZs in given direc
             print(f'in {xmlFileName}, replacing:\n{stringToFind}\nwith:\n{replacementString}') # notify user
             print("")
 
-            # replace SN0 with PN0 if preference is selected:
-            if SNreplace:
-                s = s.replace('SN0', 'PN0') # find and replace
-                print("")
-                print("replacing instances of SN0 with PN0 in BOM")
-                print("")
-
             with open(xmlFilePath, "w") as f:
                 f.write(s) # close the file
 
@@ -263,8 +256,6 @@ while not isValidDirectory:
         print(f"{directory} is not a valid path.")
         print("Please try again!")
         print("")
-SNreplace = input("Replace instances of SN0 with PN0 in the BOM trees? Type YES to replace: ").upper() == "YES"
-print("")
 publishToDocumoto = input("Publish the new PLZ pages to Documoto? Type YES to publish: ").upper() == "YES"
 print("")
 cleanup = input("Cleanup temporary files after repackaging archives? Type YES to delete: ").upper() == "YES"
