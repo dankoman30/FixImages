@@ -2,6 +2,8 @@
 import os, fnmatch, subprocess, shutil, zipfile
 from zipfile import ZipFile
 
+import xml.etree.ElementTree as ET # for parsing xml tree
+
 import requests, http.client
 from dotenv import load_dotenv
 
@@ -66,12 +68,12 @@ def fixTheFiles(directory): # this function decompresses all PLZs in given direc
     print(f"PLZ archives have been extracted into {temp_directory}!")
     print("")
 
-    # MODIFY XML and move to new file directory
+    # MODIFY XML and save to new file directory (update name and description attributes in page translation)
     for path, dirs, files in os.walk(os.path.abspath(temp_directory)): # walk through temp_directory to find files
         for xmlFileName in fnmatch.filter(files, "*.xml"): # iterate through only the file that match specified extension
             xmlFilePath = os.path.join(path, xmlFileName) # join path and filename to get absolute file path
 
-            # get page title from filename (last element of space-delimited filename prior to extension)
+            # get page title by parsing filename (last element of space-delimited filename prior to extension)
             pageTitleWithUnderscores = xmlFileName.replace('.xml', '') # start by removing file extension
             pageTitleWithUnderscores = pageTitleWithUnderscores.replace('  ', ' ') # replace double spaces with single spaces
             splitChar = ' ' # define the delimiter
@@ -80,31 +82,22 @@ def fixTheFiles(directory): # this function decompresses all PLZs in given direc
                 pageTitleWithUnderscores = listOfValues[-1] # get last index of list and set pageTitle equal to it
             else:
                 break # break the loop if zero length list
-
-            # build string we want to replace in the xml
-            oldNameAttribute = xmlFileName.replace(' ' + pageTitleWithUnderscores + '.xml', '') # remove final space, page title, and file extension from the xml file name to get the old name attribute value
-            stringToFind = '<Translation locale=\"en_US\" name=\"' + oldNameAttribute + '\" description=\"\"/>'
-
-            # build replacement string
             pageTitleWithSpaces = pageTitleWithUnderscores.replace('_', ' ') # replace underscores with spaces
-            replacementString = '<Translation locale=\"en_US\" name=\"' + pageTitleWithSpaces + '\" description=\"' + pageTitleWithSpaces + '\"/>'
             
-            with open(xmlFilePath) as f:
-                s = f.read() # open the file
-            s = s.replace(stringToFind, replacementString) # find and replace
-            print("")
-            print(f'in {xmlFileName}, replacing:\n{stringToFind}\nwith:\n{replacementString}') # notify user
-            print("")
+            # use xml.etree to update page attributes 'name' and 'description'
+            ET.register_namespace('', "http://digabit.com/documoto/partslist/1.4") # register documoto namespace in the element tree
+            tree = ET.parse(xmlFilePath) # parse xml file into xml tree
+            root = tree.getroot() # get the root tree (in this case, root is <Page>)
+            root[0].set('name', pageTitleWithSpaces) # explicitly access root's first element (which should be Translation),
+            root[0].set('description', pageTitleWithSpaces) # and set new attribute values for name and description.
 
-            with open(xmlFilePath, "w") as f:
-                f.write(s) # close the file
-
-            # move modified xml to new file directory
+            # save the modified xml in new file directory
             newXmlFilePath = os.path.join(new_file_directory, xmlFileName)
-            shutil.move(xmlFilePath, newXmlFilePath)
-            print(f'moving\n{xmlFilePath}\nto\n{newXmlFilePath}')
+            tree.write(newXmlFilePath, encoding='utf-8', xml_declaration=True)
+
+            print(f'saved new xml to:\n{newXmlFilePath}\n')
             
-        print("find-and-replace complete!")
+        print("PAGE NAME AND DESCRIPTION MODIFICATION COMPLETE!")
         print("")
         break # prevent descending into subfolders
 
