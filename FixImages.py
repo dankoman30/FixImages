@@ -107,24 +107,35 @@ def fixTheFiles(directory): # this function decompresses all PLZs in given direc
         print("")
         break # prevent descending into subfolders
 
-    # now that all files are extracted, let's find and replace in the svg files to prepare them for overlaying onto rasters (these modified SVGs will eventually be discarded)
+    # now that all files are extracted, use etree to modify attributes in the svg files to prepare them for overlaying onto rasters
+    # (these modified SVGs will NOT be repacked into original PLZ archives - they're only for temporary use)
     for path, dirs, files in os.walk(os.path.abspath(temp_directory)): # walk through temp_directory to find files
         for svgFileName in fnmatch.filter(files, "*.svg"): # iterate through only the file that match specified extension
             svgFilePath = os.path.join(path, svgFileName) # join path and filename to get absolute file path
-            with open(svgFilePath) as f:
-                s = f.read() # open the file
-            s = s.replace('stroke=\"#FFFFFF\" stroke-width=\"2\" ', '') # find and replace (callout bubble white outline)
-            s = s.replace('<text', '<text font-size=\"36px\" dy=\"9px\"') # find and replace (callout text size and alignment)
-            with open(svgFilePath, "w") as f:
-                f.write(s) # close the file
-            print(f"performing find-and-replace on {svgFileName}...")
-        
-        print("find-and-replace complete!")
+
+            register_all_namespaces(svgFilePath, svg_ET) # register namespaces
+            SVGtree = svg_ET.parse(svgFilePath) # get tree
+            SVGroot = SVGtree.getroot() # get root
+
+            for text in SVGroot.iter('{http://www.w3.org/2000/svg}text'): # iterate through root to find <text> elements
+                text.set('font-size', '36px') # add font-size attribute to increase text size
+                text.set('dy', '9px') # add y-offset attribute to center text in bubble
+
+            for ellipse in SVGroot.iter('{http://www.w3.org/2000/svg}ellipse'): # iterate through root to find <ellipse> elements
+                ellipse.attrib.pop('stroke') # remove stroke attribute and stroke-width attributes to
+                ellipse.attrib.pop('stroke-width') # remove the white outline on callout bubbles
+
+            SVGtree.write(svgFilePath) # overwrite SVG with new file
+
+            print(f"completed attribute modification in {svgFileName}...")
+
+        print("")        
+        print("SVG ATTRIBUTE MODIFICATION IS COMPLETE!")
         print("")
         break # prevent descending into subfolders
 
     # now we need to mogrify
-    process = subprocess.Popen(f'mogrify -path {new_file_directory} -format png {temp_directory}/*.svg', # run the shell command
+    process = subprocess.Popen(f'mogrify -path {new_file_directory} -format png {temp_directory}/*.svg', # run the shell command, performing mogrify on ALL SVGs in the temp_directory with their corresponding PNG raster images
                            shell=True, stdout=subprocess.PIPE)
     process.wait() # wait for process to finish in current thread before proceeding
     print(f"newly-generated PNGs are located in {new_file_directory}!")
@@ -151,7 +162,8 @@ def fixTheFiles(directory): # this function decompresses all PLZs in given direc
             os.rename(new_filepath, old_filepath) # rename new file to old filename
             print(f"removing source png and xml files from original archive {plzFileName}")
         
-        print("source PNG and XML removal from original PLZ archives is complete!")
+        print("")
+        print("SOURCE PNG and XML REMOVAL FROM ORIGINAL PLZ ARCHIVES IS COMPLETE!")
         print("")
         break # prevent descending into subfolders
 
@@ -196,7 +208,7 @@ def fixTheFiles(directory): # this function decompresses all PLZs in given direc
                 print(response.text)
 
         print("")
-        print("PNG and XML re-packing is completed!")
+        print("PNG AND XML REPACKING INTO ORIGINAL PLZ ARCHIVES IS COMPLETE!")
         print("")
         break # prevent descending into subfolders
 
