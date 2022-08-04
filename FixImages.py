@@ -2,7 +2,8 @@
 import os, fnmatch, subprocess, shutil, zipfile
 from zipfile import ZipFile
 
-import xml.etree.ElementTree as ET # for parsing xml tree
+import xml.etree.ElementTree as xml_ET # for parsing xml tree
+import xml.etree.ElementTree as svg_ET # for parsing svg tree
 
 import requests, http.client
 from dotenv import load_dotenv
@@ -19,6 +20,11 @@ headers = {
 }
 
 exclude_list = [] # initialize exclude_list as new empty list
+
+def register_all_namespaces(filename, ET): # function for registering xml namespaces in etree (parses original file and retains namespaces)
+    namespaces = dict([node for _, node in ET.iterparse(filename, events=['start-ns'])])
+    for ns in namespaces:
+        ET.register_namespace(ns, namespaces[ns])
 
 def isExcluded(plzFileName):
     if plzFileName in exclude_list: # check exclude list for the PLZ filename
@@ -85,15 +91,15 @@ def fixTheFiles(directory): # this function decompresses all PLZs in given direc
             pageTitleWithSpaces = pageTitleWithUnderscores.replace('_', ' ') # replace underscores with spaces
             
             # use xml.etree to update page attributes 'name' and 'description'
-            ET.register_namespace('', "http://digabit.com/documoto/partslist/1.4") # register documoto namespace in the element tree
-            tree = ET.parse(xmlFilePath) # parse xml file into xml tree
-            root = tree.getroot() # get the root tree (in this case, root is <Page>)
-            root[0].set('name', pageTitleWithSpaces) # explicitly access root's first element (which should be Translation),
-            root[0].set('description', pageTitleWithSpaces) # and set new attribute values for name and description.
+            register_all_namespaces(xmlFilePath, xml_ET) # register namespaces
+            XMLtree = xml_ET.parse(xmlFilePath) # parse xml file into xml tree
+            XMLroot = XMLtree.getroot() # get the root tree (in this case, root is <Page>)
+            XMLroot[0].set('name', pageTitleWithSpaces) # explicitly access root's first element (which should be Translation),
+            XMLroot[0].set('description', pageTitleWithSpaces) # and set new attribute values for name and description.
 
             # save the modified xml in new file directory
             newXmlFilePath = os.path.join(new_file_directory, xmlFileName)
-            tree.write(newXmlFilePath, encoding='utf-8', xml_declaration=True)
+            XMLtree.write(newXmlFilePath, encoding='utf-8', xml_declaration=True)
 
             print(f'saved new xml to:\n{newXmlFilePath}\n')
             
