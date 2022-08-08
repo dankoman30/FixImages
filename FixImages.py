@@ -1,4 +1,5 @@
 #!/usr/local/bin/python
+from email.mime import image
 import os, fnmatch, subprocess, shutil, zipfile
 from zipfile import ZipFile
 
@@ -21,6 +22,8 @@ headers = {
 }
 
 exclude_list = [] # initialize exclude_list as new empty list
+
+# FUNCTION DEFINITIONS
 
 def register_all_namespaces(filename, ET): # function for registering xml namespaces in etree (parses original file and retains namespaces)
     namespaces = dict([node for _, node in ET.iterparse(filename, events=['start-ns'])])
@@ -49,18 +52,102 @@ def isExcluded(plzFileName):
     else:
         return False
 
-def fixTheFiles(directory): # this function decompresses all PLZs in given directory into same directory
-    
-    temp_directory = os.path.abspath(directory + "/FixImages_temp") # define temporary directory name
+def intro():
+    print("")
+    print("============================================")
+    print("                 HELLO THERE!")
+    print("============================================")
+    print("")
+    print("Welcome to Documoto Image Fixer!")
+    print("================================")
+    print("This is an application to embed Documoto callout bubbles onto the source raster images.")
+    print("The directory entered below must include documoto package files (*.plz).")
+    print("Files will be extracted, modifications made, and repackaged into the original archives.")
+    print("Publishing of files to the Documoto tenant will be optional.")
+    print("")
+    print("************************************************************************")
+    print("If you wish to publish THUMBNAIL images as well, they need to be located")
+    print("in the same root directory as the PLZ archives, for XML modification and")
+    print("automatic uploading of thumbnails to occur.")
+    print("************************************************************************")
+    print("")
+
+def getRootDirectoryFromUser():
+    isValidDirectory = False
+    while not isValidDirectory:
+        directory = input("Enter full directory containing the plz files: ")
+        directory = directory.replace('\\', '/') # replace backslashes with forward slashes
+        print("")
+        if os.path.exists(directory): # check to see if directory exists before proceeding
+            if not ' ' in directory: # check to see if directory has spaces
+                isValidDirectory = True # if no spaces, flag this to true to prevent next loop iteration
+            else: # complain
+                print("")
+                print(f"{directory} contains spaces. Please use a directory structure containing no spaces.")
+                print("Please try again!")
+                print("")
+        else: # complain
+            print("")
+            print(f"{directory} is not a valid path.")
+            print("Please try again!")
+            print("")
+    return directory
+
+def defineDirectories(directory): # function to define directories used globally
+    global root_directory, temp_directory, new_file_directory # declare global variables
+    root_directory = directory
+    temp_directory = os.path.abspath(root_directory + "/FixImages_temp") # define temporary directory name
     new_file_directory = os.path.abspath(temp_directory + "/new_files") # define new_file temporary directory name
-    if not os.path.exists(new_file_directory):
+    if not os.path.exists(new_file_directory): # make sure this directory doesn't exist (it shouldn't, but let's check anyway)
         print("")
         print(f'creating directory {new_file_directory} for temporary storage of new files.')
         print("")
-        os.makedirs(new_file_directory) # create new directory for modified files to be stored prior to repackaging into original PLZ archives
+        os.makedirs(new_file_directory) # recursively create new directory structure <root>/FixImages_temp/new_files
 
+def checkForThumbnails():
+    # check root directory contents, warn user if no thumbnails are found (they can still be moved to the input directory by the user at this point if necessary)
+    thumbnailsMissing = False # initialize this flag to false (we'll set to true if we find at least one PLZ archive without a corresponding thumbnail image)
+    print(f"Relevant files found in {root_directory}:")
+    for path, dirs, files in os.walk(os.path.abspath(root_directory)): # walk through directory and file structure in predefined path to find files
+        # list PLZ files in directory
+        print("***PLZ FILES: ***")
+        for plzFileName in fnmatch.filter(files, "*.plz"): # iterate through only the files that match plz file extension
+            plzFilePath = os.path.join(path, plzFileName) # join path and filename to get absolute file path
+            thumbnailFilePath = plzFilePath.replace('.plz', '.png') # this is the thumbnail, located in same root directory as PLZs
+            print(f"\t{plzFileName}") # print the plz filename
+            if not os.path.exists(thumbnailFilePath):
+                thumbnailsMissing = True
+                print("*****WARNING: THUMBNAIL IMAGE FOR THE ABOVE PLZ ARCHIVE IS MISSING!*****")
+
+        print("")
+    
+        # list png thumbnail files in directory
+        print("***PNG THUMBNAIL FILES: ***")
+        for thumbnailFileName in fnmatch.filter(files, "*.png"): # iterate through only the files that match png file extension
+            print(f"\t{thumbnailFileName}") # print the png thumbnail filename
+        break # prevent descending into subfolders
+
+    print("")
+    if thumbnailsMissing:
+        print("*********************************************************************************************************")
+        print("WARNING: AT LEAST 1 PLZ ARCHIVE IS MISSING ITS CORRESPONDING THUMBNAIL IMAGE IN THE ROOT DIRECTORY!!!")
+        print(f"You can still copy the thumbnail(s) into {directory}")
+        print("RIGHT NOW if you'd like to include them. Otherwise, they'll need to be added manually afterwards within the tenant.")
+        print("*********************************************************************************************************")
+        print("")
+        input("PLEASE PRESS <ENTER> TO CONTINUE!")
+        print("")
+
+def getUserPreferences():
+    global publishToDocumoto, cleanup # declare these as global so they can be used elsewhere
+    publishToDocumoto = input("Publish the new PLZ pages to Documoto? Type YES to publish: ").upper() == "YES"
+    print("")
+    cleanup = input("Cleanup temporary files after repackaging archives? Type YES to delete: ").upper() == "YES"
+    print("")
+
+def extractArchives():
     # Extract all the contents of zip file in temporary subdirectory
-    for path, dirs, files in os.walk(os.path.abspath(directory)): # walk through directory and file structure in predefined path to find files
+    for path, dirs, files in os.walk(os.path.abspath(root_directory)): # walk through directory and file structure in predefined path to find files
         for plzFileName in fnmatch.filter(files, "*.plz"): # iterate through only the file that match plz file extension
             plzFilePath = os.path.join(path, plzFileName) # join path and filename to get absolute file path
 
@@ -87,6 +174,7 @@ def fixTheFiles(directory): # this function decompresses all PLZs in given direc
     print(f"PLZ archives have been extracted into {temp_directory}!")
     print("")
 
+def modifyXMLfiles():
     # MODIFY XML and save to new file directory (update name and description attributes in page translation)
     for path, dirs, files in os.walk(os.path.abspath(temp_directory)): # walk through temp_directory to find files
         for xmlFileName in fnmatch.filter(files, "*.xml"): # iterate through only the file that match specified extension
@@ -115,7 +203,7 @@ def fixTheFiles(directory): # this function decompresses all PLZs in given direc
             # to the root tree. <Comments> contains the filename.  We will need to upload this file also
             # build and add <Attachment> element here:
             thumbnailFileName = xmlFileName.replace('.xml', '.png') # get thumbnail filename using xml filename by replacing xml with png
-            thumbnailFilePath = os.path.join(os.path.abspath(directory), thumbnailFileName) # join root directory path with thumbnail filename to get thumbnail absolute path
+            thumbnailFilePath = os.path.join(os.path.abspath(root_directory), thumbnailFileName) # join root directory path with thumbnail filename to get thumbnail absolute path
             if os.path.exists(thumbnailFilePath): # check to see if PNG thumbnail exists
                 print(f"MATCHING THUMBNAIL FOUND: {thumbnailFilePath}")
                 print("ADDING THUMBNAIL DATA TO XML")
@@ -138,11 +226,12 @@ def fixTheFiles(directory): # this function decompresses all PLZs in given direc
 
             print(f'saved new xml to:\n{newXmlFilePath}\n')
             
-        print("PAGE NAME AND DESCRIPTION MODIFICATION COMPLETE!")
+        print("XML ELEMENT AND ATTRIBUTE MODIFICATION COMPLETE!")
         print("")
         break # prevent descending into subfolders
 
-    # now that all files are extracted, use etree to modify attributes in the svg files to prepare them for overlaying onto rasters
+def generateTemporarySVGfiles():
+    # use etree to modify attributes in the svg files to prepare them for overlaying onto rasters
     # (these modified SVGs will NOT be repacked into original PLZ archives - they're only for temporary use)
     for path, dirs, files in os.walk(os.path.abspath(temp_directory)): # walk through temp_directory to find files
         for svgFileName in fnmatch.filter(files, "*.svg"): # iterate through only the file that match specified extension
@@ -169,18 +258,20 @@ def fixTheFiles(directory): # this function decompresses all PLZs in given direc
         print("")
         break # prevent descending into subfolders
 
-    # now we need to mogrify
+def generateNewRasters():
+    # use imagemagick mogrify function to overlay new temporary SVG callouts onto original source png raster image
     process = subprocess.Popen(f'mogrify -path {new_file_directory} -format png {temp_directory}/*.svg', # run the shell command, performing mogrify on ALL SVGs in the temp_directory with their corresponding PNG raster images
                            shell=True, stdout=subprocess.PIPE)
     process.wait() # wait for process to finish in current thread before proceeding
     print(f"newly-generated PNGs are located in {new_file_directory}!")
     print("")
 
+def removeSourcePNGandXMLfiles():
     # we need to remove the original png and xml files from the plz archives to avoid duplication
-    for path, dirs, files in os.walk(os.path.abspath(directory)): # walk through directory and file structure in predefined path to find files
+    for path, dirs, files in os.walk(os.path.abspath(root_directory)): # walk through directory and file structure in predefined path to find files
         for plzFileName in fnmatch.filter(files, "*.plz"): # iterate through only the file that match plz file extension
             if isExcluded(plzFileName): # check to see if plz file is in excluded list, before doing anything else
-                continue # continue to next loop iteration, skipping this file
+                continue # continue to next loop iteration, skipping this file (if excluded, we don't want to touch it)
 
             old_filepath = os.path.join(path, plzFileName)
             new_filepath = os.path.join(path, plzFileName + "_new")
@@ -202,12 +293,12 @@ def fixTheFiles(directory): # this function decompresses all PLZs in given direc
         print("")
         break # prevent descending into subfolders
 
-
+def repackNewPNGandXMLfiles():
     # now we need to re-pack the new png and xml files into their original archives
-    for path, dirs, files in os.walk(os.path.abspath(directory)): # walk through directory and file structure in predefined path to find files
+    for path, dirs, files in os.walk(os.path.abspath(root_directory)): # walk through directory and file structure in predefined path to find files
         for plzFileName in fnmatch.filter(files, "*.plz"): # iterate through only the file that match plz file extension
             if isExcluded(plzFileName): # check to see if plz file is in excluded list, before doing anything else
-                continue # continue to next loop iteration, skipping this file
+                continue # continue to next loop iteration, skipping this file (if excluded, we don't want to touch it)
 
             plzFilePath = os.path.join(path, plzFileName) # join path and filename to get absolute file path
             pngFileName = plzFileName.replace('.plz', '.png') # raster png in the plz package (NOT the thumbnail)
@@ -254,6 +345,7 @@ def fixTheFiles(directory): # this function decompresses all PLZs in given direc
         print("")
         break # prevent descending into subfolders
 
+def cleanupFiles():
     # clean up (delete temporary directory)
     if cleanup:
         shutil.rmtree(temp_directory)
@@ -262,13 +354,13 @@ def fixTheFiles(directory): # this function decompresses all PLZs in given direc
     else:
         print(f"keeping temporary directory! files are located in {temp_directory}")
         print("")
-
-
+    
+def outtro():
     print("")
     print("PROCESS IS COMPLETE!!!")
     print("")
 
-    # report exlusion list
+    # report exclusion list
     if len(exclude_list) != 0:
         print("***** WARNING *****")
         print("the following PLZ files have been skipped:")
@@ -279,85 +371,22 @@ def fixTheFiles(directory): # this function decompresses all PLZs in given direc
         print("PLEASE PROCESS THESE IN DOCUSTUDIO FIRST, ADDING CALLOUT BUBBLES, AND TRY AGAIN!")
         print("")
 
+    print("============================================")
+    print("                 GOODBYE!")
+    print("============================================")
 
-print("")
-print("")
-print("")
-print("Welcome to Documoto Image Fixer!")
-print("================================")
-print("This is an application to embed Documoto callout bubbles onto the source raster images.")
-print("The directory entered below must include documoto package files (plz).")
-print("Files will be extracted, modifications made, and repackaged into the original archives.")
-print("")
-print("************************")
-print("If you wish to publish THUMBNAIL images as well, they need to be located")
-print("in the same root directory as the PLZ archives, for XML modification and")
-print("automatic uploading of thumbnails to occur.")
-print("************************")
-print("")
+# END OF FUNCTION DEFINITIONS
 
-# preferences
-isValidDirectory = False
-while not isValidDirectory:
-    directory = input("Enter full directory containing the plz files: ")
-    directory = directory.replace('\\', '/') # replace backslashes with forward slashes
-    print("")
-    if os.path.exists(directory): # check to see if directory exists before proceeding
-        if not ' ' in directory: # check to see if directory has spaces
-            isValidDirectory = True # if no spaces, flag this to true to prevent next loop iteration
-        else: # complain
-            print("")
-            print(f"{directory} contains spaces. Please use a directory structure containing no spaces.")
-            print("Please try again!")
-            print("")
-    else: # complain
-        print("")
-        print(f"{directory} is not a valid path.")
-        print("Please try again!")
-        print("")
-
-# check directory contents, warn user if no thumbnails are found (they can still be moved to the input directory by the user at this point if necessary)
-thumbnailsMissing = False # initialize this flag to false (we'll set to true if we find at least one PLZ archive without a corresponding thumbnail image)
-print(f"Relevant files found in {directory}:")
-for path, dirs, files in os.walk(os.path.abspath(directory)): # walk through directory and file structure in predefined path to find files
-    # list PLZ files in directory
-    print("***PLZ FILES: ***")
-    for plzFileName in fnmatch.filter(files, "*.plz"): # iterate through only the files that match plz file extension
-        plzFilePath = os.path.join(path, plzFileName) # join path and filename to get absolute file path
-        thumbnailFilePath = plzFilePath.replace('.plz', '.png') # this is the thumbnail, located in same root directory as PLZs
-        print(f"\t{plzFileName}") # print the plz filename
-        if not os.path.exists(thumbnailFilePath):
-            thumbnailsMissing = True
-            print("*****WARNING: THUMBNAIL IMAGE FOR THE ABOVE PLZ ARCHIVE IS MISSING!*****")
-
-    print("")
-    
-    # list png thumbnail files in directory
-    print("***PNG THUMBNAIL FILES: ***")
-    for thumbnailFileName in fnmatch.filter(files, "*.png"): # iterate through only the files that match png file extension
-        print(f"\t{thumbnailFileName}") # print the png thumbnail filename
-    break # prevent descending into subfolders
-
-print("")
-if thumbnailsMissing:
-    print("*********************************************************************************************************")
-    print("WARNING: AT LEAST 1 PLZ ARCHIVE IS MISSING ITS CORRESPONDING THUMBNAIL IMAGE IN THE ROOT DIRECTORY!!!")
-    print(f"You can still copy the thumbnail(s) into {directory}")
-    print("RIGHT NOW if you'd like to include them. Otherwise, they'll need to be added manually afterwards within the tenant.")
-    print("*********************************************************************************************************")
-    print("")
-    
-
-
-publishToDocumoto = input("Publish the new PLZ pages to Documoto? Type YES to publish: ").upper() == "YES"
-print("")
-cleanup = input("Cleanup temporary files after repackaging archives? Type YES to delete: ").upper() == "YES"
-print("")
-
-
-fixTheFiles(directory) # FIX THE FILES!
-
-print("============================================")
-print("                 GOODBYE!")
-print("============================================")
-
+# MAIN PROGRAM STARTS HERE
+intro() # say hi!
+defineDirectories(getRootDirectoryFromUser()) # define global directories based on user-input directory path
+checkForThumbnails() # look for matching thumbnails
+getUserPreferences() # get user preferences for some optional functionality
+extractArchives() # unpack the PLZs
+modifyXMLfiles() # modify XML elements and attributes
+generateTemporarySVGfiles() # create temp SVG images in preparation for overlay onto rasters
+generateNewRasters() # create the new raster images
+removeSourcePNGandXMLfiles() # wipe out the source PNG and XML files prior to repack
+repackNewPNGandXMLfiles() # repack the new PNG and XML files into their corresponding source archives
+cleanupFiles() # clean up temporary stuff if user wants to
+outtro() # say bye!
