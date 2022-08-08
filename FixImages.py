@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 load_dotenv()
 DOCUMOTO_API_ENDPOINT_URL = "https://integration.digabit.com/api/ext/publishing/upload/v1?submitForPublishing=true" # documoto integration URL
 DOCUMOTO_API_KEY = os.environ.get('DOCUMOTO_API_KEY') # API key is stored in DOCUMOTO_API_KEY env variable
+DOCUMOTO_USERNAME = "integration@nikolamotor.com"
 
 headers = {
     # 'Content-Type': 'multipart/form-data', # comment this out to let requests handle type definition
@@ -25,6 +26,7 @@ def register_all_namespaces(filename, ET): # function for registering xml namesp
     namespaces = dict([node for _, node in ET.iterparse(filename, events=['start-ns'])])
     for ns in namespaces:
         ET.register_namespace(ns, namespaces[ns])
+    return namespaces # return namespaces for use in tree iteration later
 
 def isExcluded(plzFileName):
     if plzFileName in exclude_list: # check exclude list for the PLZ filename
@@ -91,15 +93,37 @@ def fixTheFiles(directory): # this function decompresses all PLZs in given direc
             pageTitleWithSpaces = pageTitleWithUnderscores.replace('_', ' ') # replace underscores with spaces
             
             # use xml.etree to update page attributes 'name' and 'description'
-            register_all_namespaces(xmlFilePath, xml_ET) # register namespaces
+            XMLnamespaces = register_all_namespaces(xmlFilePath, xml_ET) # register namespaces
             XMLtree = xml_ET.parse(xmlFilePath) # parse xml file into xml tree
             XMLroot = XMLtree.getroot() # get the root tree (in this case, root is <Page>)
-            XMLroot[0].set('name', pageTitleWithSpaces) # explicitly access root's first element (which should be Translation),
-            XMLroot[0].set('description', pageTitleWithSpaces) # and set new attribute values for name and description.
+            translationElement = XMLroot.find("Translation", XMLnamespaces) # define Translation element so we can set its attributes
+            translationElement.set('name', pageTitleWithSpaces) # set name
+            translationElement.set('description', pageTitleWithSpaces) # set description
 
+            # if it does, we can safely build and add the <Attachment> element and <Comments> subelement
+            # to the root tree. <Comments> contains the filename.  We will need to upload this file also
+            # build and add <Attachment> element here:
+            thumbnailFileName = xmlFileName.replace('.xml', '.png') # get thumbnail filename using xml filename by replacing xml with png
+            thumbnailFilePath = os.path.join(os.path.abspath(directory), thumbnailFileName) # join root directory path with thumbnail filename to get thumbnail absolute path
+            if os.path.exists(thumbnailFilePath): # check to see if PNG thumbnail exists
+                print(f"MATCHING THUMBNAIL FOUND: {thumbnailFilePath}")
+                print("ADDING THUMBNAIL DATA TO XML")
+
+                # add subelements
+                attachmentElement = xml_ET.SubElement(XMLroot, "Attachment") # add <Attachment> subelement to <Page> root
+                commentsElement = xml_ET.SubElement(attachmentElement, "Comments") # add <Comments> subelement to <Attachment> element
+
+                # set attributes for newly created subelements
+                attachmentElement.set('fileName', thumbnailFileName) # set fileName attribute
+                attachmentElement.set('global', "false") # set global attribute
+                attachmentElement.set('publicBelowOrg', "false") # set publicBelowOrg attribute
+                attachmentElement.set('type', "THUMBNAIL") # set type attribute
+                attachmentElement.set('userName', DOCUMOTO_USERNAME) # set userName attribute
+                commentsElement.text = thumbnailFileName # set comments text to thumbnail filename
+                
             # save the modified xml in new file directory
             newXmlFilePath = os.path.join(new_file_directory, xmlFileName)
-            XMLtree.write(newXmlFilePath, encoding='utf-8', xml_declaration=True)
+            XMLtree.write(newXmlFilePath, encoding='utf-8', xml_declaration=True) # need to set xml_declaration to True to preserve first line of xml <?xml version="1.0" encoding="UTF-8"?>
 
             print(f'saved new xml to:\n{newXmlFilePath}\n')
             
@@ -113,7 +137,7 @@ def fixTheFiles(directory): # this function decompresses all PLZs in given direc
         for svgFileName in fnmatch.filter(files, "*.svg"): # iterate through only the file that match specified extension
             svgFilePath = os.path.join(path, svgFileName) # join path and filename to get absolute file path
 
-            register_all_namespaces(svgFilePath, svg_ET) # register namespaces
+            SVGnamespaces = register_all_namespaces(svgFilePath, svg_ET) # register namespaces
             SVGtree = svg_ET.parse(svgFilePath) # get tree
             SVGroot = SVGtree.getroot() # get root
 
@@ -175,12 +199,14 @@ def fixTheFiles(directory): # this function decompresses all PLZs in given direc
                 continue # continue to next loop iteration, skipping this file
 
             plzFilePath = os.path.join(path, plzFileName) # join path and filename to get absolute file path
-            pngFileName = plzFileName.replace('.plz', '.png')
-            pngFilePath = os.path.join(new_file_directory, pngFileName) # remove last 3 characters from plz file path (.plz) to get base filename (no extension).
-                                                                       # Then, append "png" to it to get the png file path (after joining with new_file_directory path)
-            xmlFileName = plzFileName.replace('.plz', '.xml')
-            xmlFilePath = os.path.join(new_file_directory, xmlFileName) # remove last 3 characters from plz file path (.plz) to get base filename (no extension).
-                                                                       # Then, append "xml" to it to get the xml file path (after joining with new_file_directory path)
+            pngFileName = plzFileName.replace('.plz', '.png') # raster png in the plz package (NOT the thumbnail)
+            pngFilePath = os.path.join(new_file_directory, pngFileName) # join new_file_directory with pngFileName to get png absolute path
+            xmlFileName = plzFileName.replace('.plz', '.xml') # find and replace .plz with .xml to get the xml file name
+            xmlFilePath = os.path.join(new_file_directory, xmlFileName) # join new_file_directory with xmlFileName to get xml absolute path
+            
+            thumbnailFilePath = plzFilePath.replace('.plz', '.png') # this is the thumbnail, located in same root directory as PLZs
+            thumbnailFileName = pngFileName # thumbnail filename should be identical to png file name (even though they're different files)
+
             print("")
             print(f"re-packing new PNG and XML into archive {plzFileName}")
             print("ARCHIVE CONTENTS:")
@@ -191,9 +217,31 @@ def fixTheFiles(directory): # this function decompresses all PLZs in given direc
                 
             # publish to tenant?
             if publishToDocumoto:
-                print("PUBLISHING...")
+                # first, attempt to upload the PLZ's corresponding thumbnail image
+                if os.path.exists(thumbnailFilePath): # check to see if the thumbnail even exists:
+                    print("")
+                    print(f"UPLOADING THUMBNAIL IMAGE: {thumbnailFileName}...")
 
-                filesToUpload = {'file': (plzFileName, open(plzFilePath, 'rb'), 'application/octet-stream')} # use filename as first parameter of 3-tuple
+                    filesToUpload = {'file': (thumbnailFileName, open(thumbnailFilePath, 'rb'), 'application/octet-stream')} # use filename as first parameter of 3-tuple
+
+                    response = requests.request('POST', DOCUMOTO_API_ENDPOINT_URL, headers = headers, files = filesToUpload)
+
+                    # print request size
+                    method_len = len(response.request.method)
+                    url_len = len(response.request.url)
+                    headers_len = len('\r\n'.join('{}{}'.format(k, v) for k, v in response.request.headers.items()))
+                    body_len = len(response.request.body if response.request.body else [])
+                    print(f'Request size {method_len + url_len + headers_len + body_len}')
+
+                    print("RESPONSE - Code " + str(response.status_code) + ": " + http.client.responses[response.status_code]) # convert response code to description and output to console
+                    print(response.text)
+
+                # now, upload the PLZ
+                print("")
+                print(f"UPLOADING AND PUBLISHING PLZ: {plzFileName}...")
+
+                filesToUpload = {'file': (plzFileName, open(plzFilePath, 'rb'), 'application/octet-stream'), # use filename as first parameter of 3-tuple
+                                 'submitForPublishing': True} # set submitForPublishing to true so file is published once uploaded
 
                 response = requests.request('POST', DOCUMOTO_API_ENDPOINT_URL, headers = headers, files = filesToUpload)
 
@@ -209,6 +257,7 @@ def fixTheFiles(directory): # this function decompresses all PLZs in given direc
 
         print("")
         print("PNG AND XML REPACKING INTO ORIGINAL PLZ ARCHIVES IS COMPLETE!")
+        if publishToDocumoto: print("ARCHIVES HAVE BEEN UPLOADED AND PUBLISHED TO THE DOCUMOTO TENANT!")
         print("")
         break # prevent descending into subfolders
 
@@ -246,6 +295,12 @@ print("================================")
 print("This is an application to embed Documoto callout bubbles onto the source raster images.")
 print("The directory entered below must include documoto package files (plz).")
 print("Files will be extracted, modifications made, and repackaged into the original archives.")
+print("")
+print("************************")
+print("If you wish to publish THUMBNAIL images as well, they need to be located")
+print("in the same root directory as the PLZ archives, for XML modification and")
+print("automatic uploading of thumbnails to occur.")
+print("************************")
 print("")
 
 # preferences
