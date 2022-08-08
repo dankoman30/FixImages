@@ -28,6 +28,17 @@ def register_all_namespaces(filename, ET): # function for registering xml namesp
         ET.register_namespace(ns, namespaces[ns])
     return namespaces # return namespaces for use in tree iteration later
 
+def printResponseDetails(response): # function to print details of http request response (takes response object as parameter)
+    method_len = len(response.request.method)
+    url_len = len(response.request.url)
+    headers_len = len('\r\n'.join('{}{}'.format(k, v) for k, v in response.request.headers.items()))
+    body_len = len(response.request.body if response.request.body else [])
+    print(f'Request size {method_len + url_len + headers_len + body_len}')
+
+    print("RESPONSE - Code " + str(response.status_code) + ": " + http.client.responses[response.status_code]) # convert response code to description and output to console
+    if response.status_code == 200: print("DOCUMOTO JOB #: " + response.text)
+    else: print(response.text)
+
 def isExcluded(plzFileName):
     if plzFileName in exclude_list: # check exclude list for the PLZ filename
         print("")
@@ -46,7 +57,7 @@ def fixTheFiles(directory): # this function decompresses all PLZs in given direc
         print("")
         print(f'creating directory {new_file_directory} for temporary storage of new files.')
         print("")
-        os.makedirs(new_file_directory) # create new directory (because mogrify is dumb and can't create one itself)
+        os.makedirs(new_file_directory) # create new directory for modified files to be stored prior to repackaging into original PLZ archives
 
     # Extract all the contents of zip file in temporary subdirectory
     for path, dirs, files in os.walk(os.path.abspath(directory)): # walk through directory and file structure in predefined path to find files
@@ -224,17 +235,8 @@ def fixTheFiles(directory): # this function decompresses all PLZs in given direc
 
                     filesToUpload = {'file': (thumbnailFileName, open(thumbnailFilePath, 'rb'), 'application/octet-stream')} # use filename as first parameter of 3-tuple
 
-                    response = requests.request('POST', DOCUMOTO_API_ENDPOINT_URL, headers = headers, files = filesToUpload)
-
-                    # print request size
-                    method_len = len(response.request.method)
-                    url_len = len(response.request.url)
-                    headers_len = len('\r\n'.join('{}{}'.format(k, v) for k, v in response.request.headers.items()))
-                    body_len = len(response.request.body if response.request.body else [])
-                    print(f'Request size {method_len + url_len + headers_len + body_len}')
-
-                    print("RESPONSE - Code " + str(response.status_code) + ": " + http.client.responses[response.status_code]) # convert response code to description and output to console
-                    print(response.text)
+                    thumbnailResponse = requests.request('POST', DOCUMOTO_API_ENDPOINT_URL, headers = headers, files = filesToUpload)
+                    printResponseDetails(thumbnailResponse) # print response details
 
                 # now, upload the PLZ
                 print("")
@@ -243,17 +245,8 @@ def fixTheFiles(directory): # this function decompresses all PLZs in given direc
                 filesToUpload = {'file': (plzFileName, open(plzFilePath, 'rb'), 'application/octet-stream'), # use filename as first parameter of 3-tuple
                                  'submitForPublishing': True} # set submitForPublishing to true so file is published once uploaded
 
-                response = requests.request('POST', DOCUMOTO_API_ENDPOINT_URL, headers = headers, files = filesToUpload)
-
-                # print request size
-                method_len = len(response.request.method)
-                url_len = len(response.request.url)
-                headers_len = len('\r\n'.join('{}{}'.format(k, v) for k, v in response.request.headers.items()))
-                body_len = len(response.request.body if response.request.body else [])
-                print(f'Request size {method_len + url_len + headers_len + body_len}')
-
-                print("RESPONSE - Code " + str(response.status_code) + ": " + http.client.responses[response.status_code]) # convert response code to description and output to console
-                print(response.text)
+                plzResponse = requests.request('POST', DOCUMOTO_API_ENDPOINT_URL, headers = headers, files = filesToUpload)
+                printResponseDetails(plzResponse) # print response details
 
         print("")
         print("PNG AND XML REPACKING INTO ORIGINAL PLZ ARCHIVES IS COMPLETE!")
@@ -322,6 +315,40 @@ while not isValidDirectory:
         print(f"{directory} is not a valid path.")
         print("Please try again!")
         print("")
+
+# check directory contents, warn user if no thumbnails are found (they can still be moved to the input directory by the user at this point if necessary)
+thumbnailsMissing = False # initialize this flag to false (we'll set to true if we find at least one PLZ archive without a corresponding thumbnail image)
+print(f"Relevant files found in {directory}:")
+for path, dirs, files in os.walk(os.path.abspath(directory)): # walk through directory and file structure in predefined path to find files
+    # list PLZ files in directory
+    print("***PLZ FILES: ***")
+    for plzFileName in fnmatch.filter(files, "*.plz"): # iterate through only the files that match plz file extension
+        plzFilePath = os.path.join(path, plzFileName) # join path and filename to get absolute file path
+        thumbnailFilePath = plzFilePath.replace('.plz', '.png') # this is the thumbnail, located in same root directory as PLZs
+        print(f"\t{plzFileName}") # print the plz filename
+        if not os.path.exists(thumbnailFilePath):
+            thumbnailsMissing = True
+            print("*****WARNING: THUMBNAIL IMAGE FOR THE ABOVE PLZ ARCHIVE IS MISSING!*****")
+
+    print("")
+    
+    # list png thumbnail files in directory
+    print("***PNG THUMBNAIL FILES: ***")
+    for thumbnailFileName in fnmatch.filter(files, "*.png"): # iterate through only the files that match png file extension
+        print(f"\t{thumbnailFileName}") # print the png thumbnail filename
+    break # prevent descending into subfolders
+
+print("")
+if thumbnailsMissing:
+    print("*********************************************************************************************************")
+    print("WARNING: AT LEAST 1 PLZ ARCHIVE IS MISSING ITS CORRESPONDING THUMBNAIL IMAGE IN THE ROOT DIRECTORY!!!")
+    print(f"You can still copy the thumbnail(s) into {directory}")
+    print("RIGHT NOW if you'd like to include them. Otherwise, they'll need to be added manually afterwards within the tenant.")
+    print("*********************************************************************************************************")
+    print("")
+    
+
+
 publishToDocumoto = input("Publish the new PLZ pages to Documoto? Type YES to publish: ").upper() == "YES"
 print("")
 cleanup = input("Cleanup temporary files after repackaging archives? Type YES to delete: ").upper() == "YES"
