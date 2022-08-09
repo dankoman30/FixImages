@@ -131,7 +131,7 @@ def checkForThumbnails():
     if thumbnailsMissing:
         print("*********************************************************************************************************")
         print("WARNING: AT LEAST 1 PLZ ARCHIVE IS MISSING ITS CORRESPONDING THUMBNAIL IMAGE IN THE ROOT DIRECTORY!!!")
-        print(f"You can still copy the thumbnail(s) into {directory}")
+        print(f"You can still copy the thumbnail(s) into {root_directory}")
         print("RIGHT NOW if you'd like to include them. Otherwise, they'll need to be added manually afterwards within the tenant.")
         print("*********************************************************************************************************")
         print("")
