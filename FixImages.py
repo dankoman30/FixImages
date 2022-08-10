@@ -1,5 +1,4 @@
 #!/usr/local/bin/python
-from email.mime import image
 import os, fnmatch, subprocess, shutil, zipfile
 from zipfile import ZipFile
 
@@ -11,9 +10,9 @@ from dotenv import load_dotenv
 
 # REST API STUFF
 load_dotenv()
-DOCUMOTO_API_ENDPOINT_URL = "https://integration.digabit.com/api/ext/publishing/upload/v1?submitForPublishing=true" # documoto integration URL
-DOCUMOTO_API_KEY = os.environ.get('DOCUMOTO_API_KEY') # API key is stored in DOCUMOTO_API_KEY env variable
-DOCUMOTO_USERNAME = "integration@nikolamotor.com"
+DOCUMOTO_API_ENDPOINT_URL = "https://documoto.digabit.com/api/ext/publishing/upload/v1?submitForPublishing=true" # documoto integration URL
+DOCUMOTO_API_KEY = os.environ.get('DOCUMOTO_API_KEY_PRODUCTION') # production environment API key value is stored in DOCUMOTO_API_KEY_PRODUCTION env variable
+DOCUMOTO_USERNAME = "daniel.koman@nikolamotor.com"
 
 headers = {
     # 'Content-Type': 'multipart/form-data', # comment this out to let requests handle type definition
