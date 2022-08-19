@@ -1,5 +1,5 @@
 #!/usr/local/bin/python
-import os, fnmatch, subprocess, shutil, zipfile
+import os, fnmatch, subprocess, shutil, zipfile, time, json
 from zipfile import ZipFile
 
 import xml.etree.ElementTree as xml_ET # for parsing xml tree
@@ -10,13 +10,26 @@ from dotenv import load_dotenv
 
 # REST API STUFF
 load_dotenv()
-DOCUMOTO_API_ENDPOINT_URL = "https://documoto.digabit.com/api/ext/publishing/upload/v1?submitForPublishing=true" # documoto integration URL
+DOCUMOTO_API_UPLOAD_ENDPOINT_URL = "https://documoto.digabit.com/api/ext/publishing/upload/v1?submitForPublishing=true" # documoto production environment file upload URL
+DOCUMOTO_API_EXPORT_BASE_URL = "https://documoto.digabit.com/api/ext/media/export-async/v1/" # base URL for initiating export operation (specific media identifier input by user will be appended to this base URL)
+DOCUMOTO_API_POLL_BASE_URL = "https://documoto.digabit.com/api/ext/media/export-async-poll/v1/" # base URL for polling export operation for status (request ID will be appended to this URL)
+DOCUMOTO_API_RESULT_BASE_URL = "https://documoto.digabit.com/api/ext/media/export-async-result/v1/" # base URL for downloading binary archive from Documoto (request ID will be appended to this URL)
 DOCUMOTO_API_KEY = os.environ.get('DOCUMOTO_API_KEY_PRODUCTION') # production environment API key value is stored in DOCUMOTO_API_KEY_PRODUCTION env variable
 DOCUMOTO_USERNAME = "daniel.koman@nikolamotor.com"
 
-headers = {
-    # 'Content-Type': 'multipart/form-data', # comment this out to let requests handle type definition
+text_headers = { # for text response content type
     'Accept': 'text/plain',
+    'Authorization': DOCUMOTO_API_KEY # store api key in headers dictionary with key "Authorization" as required by documoto REST API
+}
+
+
+json_headers = { # for json response content type
+    'Accept': 'application/json',
+    'Authorization': DOCUMOTO_API_KEY # store api key in headers dictionary with key "Authorization" as required by documoto REST API
+}
+
+binary_headers = { # for binary response content type (file download)
+    'Accept': 'application/octet-stream',
     'Authorization': DOCUMOTO_API_KEY # store api key in headers dictionary with key "Authorization" as required by documoto REST API
 }
 
@@ -38,8 +51,7 @@ def printResponseDetails(response): # function to print details of http request 
     print(f'Request size {method_len + url_len + headers_len + body_len}')
 
     print("RESPONSE - Code " + str(response.status_code) + ": " + http.client.responses[response.status_code]) # convert response code to description and output to console
-    if response.status_code == 200: print("DOCUMOTO JOB #: " + response.text)
-    else: print(response.text)
+    print("RESPONSE TEXT: " + response.text)
 
 def isExcluded(plzFileName):
     if plzFileName in exclude_list: # check exclude list for the PLZ filename
@@ -325,7 +337,7 @@ def repackNewPNGandXMLfiles():
 
                     filesToUpload = {'file': (thumbnailFileName, open(thumbnailFilePath, 'rb'), 'application/octet-stream')} # use filename as first parameter of 3-tuple
 
-                    thumbnailResponse = requests.request('POST', DOCUMOTO_API_ENDPOINT_URL, headers = headers, files = filesToUpload)
+                    thumbnailResponse = requests.request('POST', DOCUMOTO_API_UPLOAD_ENDPOINT_URL, headers = text_headers, files = filesToUpload)
                     printResponseDetails(thumbnailResponse) # print response details
 
                 # now, upload the PLZ
@@ -335,7 +347,7 @@ def repackNewPNGandXMLfiles():
                 filesToUpload = {'file': (plzFileName, open(plzFilePath, 'rb'), 'application/octet-stream'), # use filename as first parameter of 3-tuple
                                  'submitForPublishing': True} # set submitForPublishing to true so file is published once uploaded
 
-                plzResponse = requests.request('POST', DOCUMOTO_API_ENDPOINT_URL, headers = headers, files = filesToUpload)
+                plzResponse = requests.request('POST', DOCUMOTO_API_UPLOAD_ENDPOINT_URL, headers = text_headers, files = filesToUpload)
                 printResponseDetails(plzResponse) # print response details
 
         print("")
@@ -374,18 +386,111 @@ def outtro():
     print("                 GOODBYE!")
     print("============================================")
 
+def fixImages(): # run functions associated with fixImages process
+    intro() # say hi!
+    defineDirectories(getRootDirectoryFromUser()) # define global directories based on user-input directory path
+    checkForThumbnails() # look for matching thumbnails
+    getUserPreferences() # get user preferences for some optional functionality
+    extractArchives() # unpack the PLZs
+    modifyXMLfiles() # modify XML elements and attributes
+    generateTemporarySVGfiles() # create temp SVG images in preparation for overlay onto rasters
+    generateNewRasters() # create the new raster images
+    removeSourcePNGandXMLfiles() # wipe out the source PNG and XML files prior to repack
+    repackNewPNGandXMLfiles() # repack the new PNG and XML files into their corresponding source archives
+    cleanupFiles() # clean up temporary stuff if user wants to
+    outtro() # say bye!
+
+def exportPLZ(): # download package file from Documoto tenant
+    # sub-functions only used by exportPLZ:
+    def getExportRequestID(url): # initiate the export operation in documoto. returns the specific export request ID associated with the export operation, as a string
+        exportResponse = requests.request('GET', url, headers = text_headers) # start the export operation (returns the request ID in the response in text format, to be used in next steps)
+        printResponseDetails(exportResponse) # print the response details to the console
+        if exportResponse.status_code == 200: return exportResponse.text
+        else: return "" # if status code is not 200, request was unsuccessful.  return an empty string
+
+    def pollExportStatus(url): # poll documoto for export operation status.  returns poll status as string ("IN_PROGRESS", "COMPLETED", "ERROR", "CANCELLED")
+        pollResponse = requests.request('GET', url, headers = json_headers) # use json_headers, as application/json response content type is expected, per API documentation
+        pollResponseContent = pollResponse.json() # get the dictionary containing json response content
+
+        print("**********pollResponse.text")
+        print(pollResponse.text)
+
+
+        pollStatus = pollResponseContent["status"]
+        print(f"\tExport Operation Status: {pollStatus}")
+        if pollStatus == "ERROR": # only attempt to look up error if the status is "ERROR"
+            print("Error: " + pollResponseContent["error"]) # print the error
+        return pollStatus # returns poll status as a string
+
+    def downloadPLZ(url):
+        resultResponse = requests.request('GET', url, headers = binary_headers, stream = True) # use binary_headers, as application/octet-stream response content type is expected, per API documentation
+        printResponseDetails(resultResponse)
+        if not resultResponse.status_code == 200: # unsuccessful for some reason, details printed on previous line
+            print("Oops, that didn't work; returning to main menu.")
+            return
+        print("Please enter the complete local path that you'd like to save the file to, including file extension.")
+        localSavePath = input("Complete file path: ")
+        with open(localSavePath, 'wb') as f:
+            for chunk in resultResponse.iter_content(chunk_size=8192):
+                f.write(chunk)
+        #with open(localSavePath, 'wb') as f: f.write(resultResponse.content) # write the file to the local save path
+        print("")
+        print(f"File has been saved as {localSavePath}!")
+
+
+    # main operations in exportPLZ() function
+    print("")
+    print("DOWNLOAD ARCHIVE FROM DOCUMOTO")
+    print("Please enter the specific media identifier that you'd like to download from Documoto.")
+    mediaID = input("Media ID: ")
+    
+    # initiate the export operation in Documoto, and get the request ID associated with the job
+    DOCUMOTO_API_EXPORT_FINAL_URL = DOCUMOTO_API_EXPORT_BASE_URL + mediaID
+    exportRequestID = getExportRequestID(DOCUMOTO_API_EXPORT_FINAL_URL) # store the returned request ID in exportRequestID variable to be used in next steps
+    if exportRequestID == "":
+        print("Export operation initiation was unsuccessful; returning to main menu.")
+        return # don't go any further, as operation was unsuccessful and we don't have a valid request ID to work with
+
+    # poll Documoto to see if the export operation has been completed
+    # response content will be in json format and return a dictionary with 2 possible keys:
+    # "status": <STATUS_STRING> ("IN_PROGRESS", "COMPLETED", "ERROR", "CANCELLED")
+    # "error": <ERROR_STRING>
+    DOCUMOTO_API_POLL_FINAL_URL = DOCUMOTO_API_POLL_BASE_URL + exportRequestID
+    status = pollExportStatus(DOCUMOTO_API_POLL_FINAL_URL) # initial poll of export operation status
+    while status == "IN_PROGRESS": # keep looping while export is still in progress
+        print("Export operation is still in progress. I'll wait 3 seconds and then check again...")
+        time.sleep(3) # wait 3 seconds before polling again
+        status = pollExportStatus(DOCUMOTO_API_POLL_FINAL_URL) # poll again to update status
+    if status == "ERROR": # error
+        print("An error has occurred; returning to main menu.")
+        return
+    elif status == "CANCELLED": # cancelled
+        print("Export has been cancelled by the host; returning to main menu.")
+        return
+    elif status == "COMPLETED": # completed! proceed to download
+        DOCUMOTO_API_RESULT_FINAL_URL = DOCUMOTO_API_RESULT_BASE_URL + exportRequestID
+        downloadPLZ(DOCUMOTO_API_RESULT_FINAL_URL)
+
+def mainMenu(): # main menu structure
+    print("MAIN MENU:")
+
+    print("")
+    print("1. Fix Images in PLZ file(s)")
+    print("2. Export PLZ page archive from Documoto tenant")
+    print("0. Exit")
+    choice = input("What would you like to do? Enter a number: ")
+    if choice == "1": # fix images
+        fixImages()
+    elif choice == "2": # export plz package
+        exportPLZ()
+    elif choice == "0": # exit
+        exit()
+    else:
+        print("That's not a valid choice! Try again.")
+
 # END OF FUNCTION DEFINITIONS
 
 # MAIN PROGRAM STARTS HERE
-intro() # say hi!
-defineDirectories(getRootDirectoryFromUser()) # define global directories based on user-input directory path
-checkForThumbnails() # look for matching thumbnails
-getUserPreferences() # get user preferences for some optional functionality
-extractArchives() # unpack the PLZs
-modifyXMLfiles() # modify XML elements and attributes
-generateTemporarySVGfiles() # create temp SVG images in preparation for overlay onto rasters
-generateNewRasters() # create the new raster images
-removeSourcePNGandXMLfiles() # wipe out the source PNG and XML files prior to repack
-repackNewPNGandXMLfiles() # repack the new PNG and XML files into their corresponding source archives
-cleanupFiles() # clean up temporary stuff if user wants to
-outtro() # say bye!
+
+while True: # infinite looping menu
+    mainMenu()
