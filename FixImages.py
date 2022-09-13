@@ -8,6 +8,9 @@ import xml.etree.ElementTree as svg_ET # for parsing svg tree
 import requests, http.client
 from dotenv import load_dotenv
 
+from tkinter import filedialog
+from tkinter import *
+
 # REST API STUFF
 load_dotenv()
 DOCUMOTO_API_UPLOAD_ENDPOINT_URL = "https://documoto.digabit.com/api/ext/publishing/upload/v1?submitForPublishing=true" # documoto production environment file upload URL
@@ -63,7 +66,7 @@ def isExcluded(plzFileName):
     else:
         return False
 
-def intro():
+def imageFixerIntro():
     print("")
     print("============================================")
     print("                 HELLO THERE!")
@@ -76,32 +79,42 @@ def intro():
     print("Files will be extracted, modifications made, and repackaged into the original archives.")
     print("Publishing of files to the Documoto tenant will be optional.")
     print("")
-    print("************************************************************************")
     print("If you wish to publish THUMBNAIL images as well, they need to be located")
     print("in the same root directory as the PLZ archives, for XML modification and")
     print("automatic uploading of thumbnails to occur.")
-    print("************************************************************************")
     print("")
 
 def getRootDirectoryFromUser():
+    print("")
+    print("")
+    print("")
+    print("")
+    print("")
+    print("*******************************************************************************")
+    print("* PLEASE SELECT THE DIRECTORY CONTAINING THE PLZ FILES YOU'D LIKE TO PROCESS! *")
+    print("*******************************************************************************")
+    print("")
+
     isValidDirectory = False
     while not isValidDirectory:
-        directory = input("Enter full directory containing the plz files: ")
-        directory = directory.replace('\\', '/') # replace backslashes with forward slashes
-        print("")
-        if os.path.exists(directory): # check to see if directory exists before proceeding
-            if not ' ' in directory: # check to see if directory has spaces
-                isValidDirectory = True # if no spaces, flag this to true to prevent next loop iteration
-            else: # complain
-                print("")
-                print(f"{directory} contains spaces. Please use a directory structure containing no spaces.")
-                print("Please try again!")
-                print("")
+        directory = filedialog.askdirectory() # use tkinter to pop up directory selection dialog
+        if directory == "": # user probably hit cancel on file selection dialog
+            print("")
+            print("okay, whatever. bye!")
+            print("")
+            quit() # quit the program completely
+        if not ' ' in directory: # check to see if directory has spaces
+            isValidDirectory = True # if no spaces, flag this to true to prevent next loop iteration
         else: # complain
             print("")
-            print(f"{directory} is not a valid path.")
+            print(f"'{directory}' contains spaces. Please use a directory structure containing no spaces.")
             print("Please try again!")
             print("")
+
+    print("")
+    print(f"You've chosen the directory {directory}")
+    print("")
+
     return directory
 
 def defineDirectories(directory): # function to define directories used globally
@@ -366,7 +379,7 @@ def cleanupFiles():
         print(f"keeping temporary directory! files are located in {temp_directory}")
         print("")
     
-def outtro():
+def fixImagesOuttro():
     print("")
     print("PROCESS IS COMPLETE!!!")
     print("")
@@ -387,7 +400,7 @@ def outtro():
     print("============================================")
 
 def fixImages(): # run functions associated with fixImages process
-    intro() # say hi!
+    imageFixerIntro() # say hi!
     defineDirectories(getRootDirectoryFromUser()) # define global directories based on user-input directory path
     checkForThumbnails() # look for matching thumbnails
     getUserPreferences() # get user preferences for some optional functionality
@@ -398,7 +411,7 @@ def fixImages(): # run functions associated with fixImages process
     removeSourcePNGandXMLfiles() # wipe out the source PNG and XML files prior to repack
     repackAndPublishPLZs() # repack the new PNG and XML files into their corresponding source archives
     cleanupFiles() # clean up temporary stuff if user wants to
-    outtro() # say bye!
+    fixImagesOuttro() # say bye!
 
 def mainMenu(): # main menu structure
     print("MAIN MENU:")
