@@ -304,7 +304,7 @@ def removeSourcePNGandXMLfiles():
         print("")
         break # prevent descending into subfolders
 
-def repackNewPNGandXMLfiles():
+def repackAndPublishPLZs():
     # now we need to re-pack the new png and xml files into their original archives
     for path, dirs, files in os.walk(os.path.abspath(root_directory)): # walk through directory and file structure in predefined path to find files
         for plzFileName in fnmatch.filter(files, "*.plz"): # iterate through only the file that match plz file extension
@@ -396,93 +396,19 @@ def fixImages(): # run functions associated with fixImages process
     generateTemporarySVGfiles() # create temp SVG images in preparation for overlay onto rasters
     generateNewRasters() # create the new raster images
     removeSourcePNGandXMLfiles() # wipe out the source PNG and XML files prior to repack
-    repackNewPNGandXMLfiles() # repack the new PNG and XML files into their corresponding source archives
+    repackAndPublishPLZs() # repack the new PNG and XML files into their corresponding source archives
     cleanupFiles() # clean up temporary stuff if user wants to
     outtro() # say bye!
-
-def exportPLZ(): # download package file from Documoto tenant
-    # sub-functions only used by exportPLZ:
-    def getExportRequestID(url): # initiate the export operation in documoto. returns the specific export request ID associated with the export operation, as a string
-        exportResponse = requests.request('GET', url, headers = text_headers) # start the export operation (returns the request ID in the response in text format, to be used in next steps)
-        printResponseDetails(exportResponse) # print the response details to the console
-        if exportResponse.status_code == 200: return exportResponse.text
-        else: return "" # if status code is not 200, request was unsuccessful.  return an empty string
-
-    def pollExportStatus(url): # poll documoto for export operation status.  returns poll status as string ("IN_PROGRESS", "COMPLETED", "ERROR", "CANCELLED")
-        pollResponse = requests.request('GET', url, headers = json_headers) # use json_headers, as application/json response content type is expected, per API documentation
-        pollResponseContent = pollResponse.json() # get the dictionary containing json response content
-
-        print("**********pollResponse.text")
-        print(pollResponse.text)
-
-
-        pollStatus = pollResponseContent["status"]
-        print(f"\tExport Operation Status: {pollStatus}")
-        if pollStatus == "ERROR": # only attempt to look up error if the status is "ERROR"
-            print("Error: " + pollResponseContent["error"]) # print the error
-        return pollStatus # returns poll status as a string
-
-    def downloadPLZ(url):
-        resultResponse = requests.request('GET', url, headers = binary_headers, stream = True) # use binary_headers, as application/octet-stream response content type is expected, per API documentation
-        printResponseDetails(resultResponse)
-        if not resultResponse.status_code == 200: # unsuccessful for some reason, details printed on previous line
-            print("Oops, that didn't work; returning to main menu.")
-            return
-        print("Please enter the complete local path that you'd like to save the file to, including file extension.")
-        localSavePath = input("Complete file path: ")
-        with open(localSavePath, 'wb') as f:
-            for chunk in resultResponse.iter_content(chunk_size=8192):
-                f.write(chunk)
-        #with open(localSavePath, 'wb') as f: f.write(resultResponse.content) # write the file to the local save path
-        print("")
-        print(f"File has been saved as {localSavePath}!")
-
-
-    # main operations in exportPLZ() function
-    print("")
-    print("DOWNLOAD ARCHIVE FROM DOCUMOTO")
-    print("Please enter the specific media identifier that you'd like to download from Documoto.")
-    mediaID = input("Media ID: ")
-    
-    # initiate the export operation in Documoto, and get the request ID associated with the job
-    DOCUMOTO_API_EXPORT_FINAL_URL = DOCUMOTO_API_EXPORT_BASE_URL + mediaID
-    exportRequestID = getExportRequestID(DOCUMOTO_API_EXPORT_FINAL_URL) # store the returned request ID in exportRequestID variable to be used in next steps
-    if exportRequestID == "":
-        print("Export operation initiation was unsuccessful; returning to main menu.")
-        return # don't go any further, as operation was unsuccessful and we don't have a valid request ID to work with
-
-    # poll Documoto to see if the export operation has been completed
-    # response content will be in json format and return a dictionary with 2 possible keys:
-    # "status": <STATUS_STRING> ("IN_PROGRESS", "COMPLETED", "ERROR", "CANCELLED")
-    # "error": <ERROR_STRING>
-    DOCUMOTO_API_POLL_FINAL_URL = DOCUMOTO_API_POLL_BASE_URL + exportRequestID
-    status = pollExportStatus(DOCUMOTO_API_POLL_FINAL_URL) # initial poll of export operation status
-    while status == "IN_PROGRESS": # keep looping while export is still in progress
-        print("Export operation is still in progress. I'll wait 3 seconds and then check again...")
-        time.sleep(3) # wait 3 seconds before polling again
-        status = pollExportStatus(DOCUMOTO_API_POLL_FINAL_URL) # poll again to update status
-    if status == "ERROR": # error
-        print("An error has occurred; returning to main menu.")
-        return
-    elif status == "CANCELLED": # cancelled
-        print("Export has been cancelled by the host; returning to main menu.")
-        return
-    elif status == "COMPLETED": # completed! proceed to download
-        DOCUMOTO_API_RESULT_FINAL_URL = DOCUMOTO_API_RESULT_BASE_URL + exportRequestID
-        downloadPLZ(DOCUMOTO_API_RESULT_FINAL_URL)
 
 def mainMenu(): # main menu structure
     print("MAIN MENU:")
 
     print("")
     print("1. Fix Images in PLZ file(s)")
-    print("2. Export PLZ page archive from Documoto tenant")
     print("0. Exit")
     choice = input("What would you like to do? Enter a number: ")
     if choice == "1": # fix images
         fixImages()
-    elif choice == "2": # export plz package
-        exportPLZ()
     elif choice == "0": # exit
         exit()
     else:
