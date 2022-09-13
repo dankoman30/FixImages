@@ -66,6 +66,19 @@ def isExcluded(plzFileName):
     else:
         return False
 
+def getPageTitleStringFromFilename(filename): # given a filename, strips the extension and returns the final space-delimited value, after replacing underscores with spaces
+    # get page title by parsing filename (last element of space-delimited filename prior to extension)
+    filenameWithoutExtension = filename[:-4] # start by removing file extension, or the final 4 characters of the filename string
+    filenameRemoveDoubleSpaces = filenameWithoutExtension.replace('  ', ' ') # replace double spaces with single spaces
+    splitChar = ' ' # define the delimiter as a single space
+    listOfValues = filenameRemoveDoubleSpaces.split(splitChar) # create list of values
+    if len(listOfValues) > 0: # check for zero length
+        pageTitleWithUnderscores = listOfValues[-1] # get last index of list and set pageTitle equal to it
+    else:
+        return "" # if zero length list, return empty string
+    pageTitleWithSpaces = pageTitleWithUnderscores.replace('_', ' ') # replace underscores with spaces
+    return pageTitleWithSpaces
+
 def imageFixerIntro():
     print("")
     print("============================================")
@@ -204,16 +217,8 @@ def modifyXMLfiles():
         for xmlFileName in fnmatch.filter(files, "*.xml"): # iterate through only the file that match specified extension
             xmlFilePath = os.path.join(path, xmlFileName) # join path and filename to get absolute file path
 
-            # get page title by parsing filename (last element of space-delimited filename prior to extension)
-            pageTitleWithUnderscores = xmlFileName.replace('.xml', '') # start by removing file extension
-            pageTitleWithUnderscores = pageTitleWithUnderscores.replace('  ', ' ') # replace double spaces with single spaces
-            splitChar = ' ' # define the delimiter
-            listOfValues = pageTitleWithUnderscores.split(splitChar) # create list of values
-            if len(listOfValues) > 0: # check for zero length
-                pageTitleWithUnderscores = listOfValues[-1] # get last index of list and set pageTitle equal to it
-            else:
-                break # break the loop if zero length list
-            pageTitleWithSpaces = pageTitleWithUnderscores.replace('_', ' ') # replace underscores with spaces
+            pageTitleWithSpaces = getPageTitleStringFromFilename(xmlFileName)
+            if pageTitleWithSpaces == "": break # break the loop if zero length list
             
             # use xml.etree to update page attributes 'name' and 'description'
             XMLnamespaces = register_all_namespaces(xmlFilePath, xml_ET) # register namespaces
