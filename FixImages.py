@@ -176,8 +176,10 @@ def checkForThumbnails():
         print("")
 
 def getUserPreferences():
-    global publishToDocumoto, cleanup # declare these as global so they can be used elsewhere
+    global publishToDocumoto, cleanup, addHotPointLinks # declare these as global so they can be used elsewhere
     publishToDocumoto = input("Publish the new PLZ pages to Documoto? Type YES to publish: ").upper() == "YES"
+    print("")
+    addHotPointLinks = input("Would you like to add Hotpoint Links to any of the pages? If so, type YES: ").upper() == "YES"
     print("")
     cleanup = input("Cleanup temporary files after repackaging archives? Type YES to delete: ").upper() == "YES"
     print("")
@@ -228,7 +230,7 @@ def modifyXMLfiles():
             translationElement.set('name', pageTitleWithSpaces) # set name
             translationElement.set('description', pageTitleWithSpaces) # set description
 
-            # if it does, we can safely build and add the <Attachment> element and <Comments> subelement
+            # if thumbnailFilePath exists, we can safely build and add the <Attachment> element and <Comments> subelement
             # to the root tree. <Comments> contains the filename.  We will need to upload this file also
             # build and add <Attachment> element here:
             thumbnailFileName = xmlFileName.replace('.xml', '.png') # get thumbnail filename using xml filename by replacing xml with png
@@ -248,7 +250,39 @@ def modifyXMLfiles():
                 attachmentElement.set('type', "THUMBNAIL") # set type attribute
                 attachmentElement.set('userName', DOCUMOTO_USERNAME) # set userName attribute
                 commentsElement.text = thumbnailFileName # set comments text to thumbnail filename
+
+
+
+
+
+            # HOTPOINT LINKING
+            if addHotPointLinks: # only perform if user preference is turned on
+                print("")
+                # here, we need to iterate through each of the <Part> elements to collect data
+                # to be used for the new <HotpointLink> elements (which will be children of the
+                # root <Page> element).  The following attributes of <HotpointLink> need definitions:
+                #   - item (identical to <Part> item attribute)
+                #   - locale="en_US"
+                #   - targetPageFile (filedialog.askopenfilename() to get PLZ filename, verify it's a PLZ file, THEN replace 'plz' with 'svg')
+                #   - targetPageName (use getPageTitleStringFromFilename(targetPageFile) to generate this)
+                #   - type="Page"
+
                 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             # save the modified xml in new file directory
             newXmlFilePath = os.path.join(new_file_directory, xmlFileName)
             XMLtree.write(newXmlFilePath, encoding='utf-8', xml_declaration=True) # need to set xml_declaration to True to preserve first line of xml <?xml version="1.0" encoding="UTF-8"?>
