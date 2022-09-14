@@ -223,12 +223,12 @@ def modifyXMLfiles():
             if pageTitleWithSpaces == "": break # break the loop if zero length list
             
             # use xml.etree to update page attributes 'name' and 'description'
-            XMLnamespaces = register_all_namespaces(xmlFilePath, xml_ET) # register namespaces
+            XMLnamespaces = register_all_namespaces(xmlFilePath, xml_ET) # register namespaces, define a dictionary containing them
             XMLtree = xml_ET.parse(xmlFilePath) # parse xml file into xml tree
             XMLroot = XMLtree.getroot() # get the root tree (in this case, root is <Page>)
-            translationElement = XMLroot.find("Translation", XMLnamespaces) # define Translation element so we can set its attributes
-            translationElement.set('name', pageTitleWithSpaces) # set name
-            translationElement.set('description', pageTitleWithSpaces) # set description
+            pageTranslationElement = XMLroot.find("Translation", XMLnamespaces) # define Translation element so we can set its attributes
+            pageTranslationElement.set('name', pageTitleWithSpaces) # set name
+            pageTranslationElement.set('description', pageTitleWithSpaces) # set description
 
             # if thumbnailFilePath exists, we can safely build and add the <Attachment> element and <Comments> subelement
             # to the root tree. <Comments> contains the filename.  We will need to upload this file also
@@ -251,10 +251,6 @@ def modifyXMLfiles():
                 attachmentElement.set('userName', DOCUMOTO_USERNAME) # set userName attribute
                 commentsElement.text = thumbnailFileName # set comments text to thumbnail filename
 
-
-
-
-
             # HOTPOINT LINKING
             if addHotPointLinks: # only perform if user preference is turned on
                 print("")
@@ -266,22 +262,47 @@ def modifyXMLfiles():
                 #   - targetPageFile (filedialog.askopenfilename() to get PLZ filename, verify it's a PLZ file, THEN replace 'plz' with 'svg')
                 #   - targetPageName (use getPageTitleStringFromFilename(targetPageFile) to generate this)
                 #   - type="Page"
+                for partElement in XMLroot.findall('Part', XMLnamespaces):
+                    # define <Part> element's <Translation> subelement to get info from:
+                    partTranslationElement = partElement.find("Translation", XMLnamespaces)
 
-                
+                    # get attribute values from each part:
+                    partNumber = partElement.get('partNumber') # get part number
+                    partDescription = partTranslationElement.get('name') # get part description
+                    item = partElement.get('item') # define item number value
 
+                    # let user select PLZ file, strip the path to get only the filename
+                    print("")
+                    print(f"Please select the PLZ page file you'd like to link to:")
+                    print(f"Hotpoint #{item} - {partNumber} - {partDescription}")
+                    print("")
+                    targetPageFile = ""
+                    targetPageFile = os.path.basename(filedialog.askopenfilename(filetypes = [('PLZ files', '*.plz')]))
 
+                    if targetPageFile == "": # user hit cancel button on the file selection dialog
+                        print("You've cancelled the file selection.")
+                        print(f"{partNumber} - {partDescription} WILL NOT BE LINKED!")
+                        print("Continuing on to the next part...")
+                        print("")
+                        continue # continue to the next part element
 
+                    targetPageName = getPageTitleStringFromFilename(targetPageFile)
 
+                    print(f"{partNumber} - {partDescription} will be linked to:")
+                    print(targetPageFile)
+                    targetPageFile = targetPageFile.replace('.plz', '.svg') # replace plz with svg, as this is what documoto will navigate to
+                    print(f"({targetPageFile} in Documoto)")
+                    print("")
 
+                    # add <HotpointLink> subelement to <Page> root
+                    hotpointLinkElement = xml_ET.SubElement(XMLroot, "HotpointLink")
 
-
-
-
-
-
-
-
-
+                    # set attribute values for newly created <HotpointLink> subelement
+                    hotpointLinkElement.set('item', item) # the item (hotpoint) number
+                    hotpointLinkElement.set('locale', "en_US") # constant value
+                    hotpointLinkElement.set('targetPageFile', targetPageFile) # the SVG page file name
+                    hotpointLinkElement.set('targetPageName', targetPageName) # the page description
+                    hotpointLinkElement.set('type', "Page") # constant value
 
             # save the modified xml in new file directory
             newXmlFilePath = os.path.join(new_file_directory, xmlFileName)
@@ -300,7 +321,7 @@ def generateTemporarySVGfiles():
         for svgFileName in fnmatch.filter(files, "*.svg"): # iterate through only the file that match specified extension
             svgFilePath = os.path.join(path, svgFileName) # join path and filename to get absolute file path
 
-            SVGnamespaces = register_all_namespaces(svgFilePath, svg_ET) # register namespaces
+            SVGnamespaces = register_all_namespaces(svgFilePath, svg_ET) # register namespaces, define a dictionary containing them
             SVGtree = svg_ET.parse(svgFilePath) # get tree
             SVGroot = SVGtree.getroot() # get root
 
