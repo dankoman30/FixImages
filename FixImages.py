@@ -14,9 +14,6 @@ from tkinter import *
 # REST API STUFF
 load_dotenv()
 DOCUMOTO_API_UPLOAD_ENDPOINT_URL = "https://documoto.digabit.com/api/ext/publishing/upload/v1?submitForPublishing=true" # documoto production environment file upload URL
-DOCUMOTO_API_EXPORT_BASE_URL = "https://documoto.digabit.com/api/ext/media/export-async/v1/" # base URL for initiating export operation (specific media identifier input by user will be appended to this base URL)
-DOCUMOTO_API_POLL_BASE_URL = "https://documoto.digabit.com/api/ext/media/export-async-poll/v1/" # base URL for polling export operation for status (request ID will be appended to this URL)
-DOCUMOTO_API_RESULT_BASE_URL = "https://documoto.digabit.com/api/ext/media/export-async-result/v1/" # base URL for downloading binary archive from Documoto (request ID will be appended to this URL)
 DOCUMOTO_API_KEY = os.environ.get('DOCUMOTO_API_KEY_PRODUCTION') # production environment API key value is stored in DOCUMOTO_API_KEY_PRODUCTION env variable
 DOCUMOTO_USERNAME = "daniel.koman@nikolamotor.com"
 
