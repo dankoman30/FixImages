@@ -274,7 +274,7 @@ def modifyXMLfiles():
                     print(f"Hotpoint #{item} - {partNumber} - {partDescription}")
                     print("")
                     targetPageFile = ""
-                    targetPageFile = os.path.basename(filedialog.askopenfilename(filetypes = [('PLZ files', '*.plz')]))
+                    targetPageFile = os.path.basename(filedialog.askopenfilename(filetypes = [('PLZ files', '*.plz')], title = f"Link to Hotpoint #{item} - {partNumber} - {partDescription}"))
 
                     if targetPageFile == "": # user hit cancel button on the file selection dialog
                         print("You've cancelled the file selection.")
