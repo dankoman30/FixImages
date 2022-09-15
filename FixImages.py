@@ -1,5 +1,5 @@
 #!/usr/local/bin/python
-import os, fnmatch, subprocess, shutil, zipfile, time, json
+import os, fnmatch, subprocess, shutil, zipfile, glob
 from zipfile import ZipFile
 
 import xml.etree.ElementTree as xml_ET # for parsing xml tree
@@ -110,18 +110,34 @@ def getRootDirectoryFromUser():
     print("")
 
     isValidDirectory = False
-    while not isValidDirectory:
+    containsPlzFiles = False
+    while not (isValidDirectory and containsPlzFiles): # loop until both conditions are satisfied
         directory = filedialog.askdirectory(title = "Select the directory containing PLZ files (and PNG thumbnails)") # use tkinter to pop up directory selection dialog
+
         if directory == "": # user probably hit cancel on file selection dialog
             print("")
             print("...umm, okay. BYE!")
             print("")
             quit() # quit the program completely
+
         if not ' ' in directory: # check to see if directory has spaces
-            isValidDirectory = True # if no spaces, flag this to true to prevent next loop iteration
+            isValidDirectory = True # good directory, no spaces
         else: # complain
+            isValidDirectory = False # bad directory, contains spaces
             print("")
-            print(f"'{directory}' contains spaces. Please use a directory structure containing no spaces.")
+            print(f"'{directory}' contains spaces.")
+            print("Use a directory structure containing no spaces.")
+            print("Please try again!")
+            print("")
+            continue # skip rest of loop and continue to next iteration
+
+        # check to make sure directory contains at least 1 plz file
+        if glob.glob(directory + "/*.plz"): # search directory for plz files
+            containsPlzFiles = True # we found a plz file, flag this to true
+        else: # complain
+            containsPlzFiles = False # no plz files found
+            print("")
+            print(f"'{directory}' does not contain any PLZ files. Choose a directory containing at least 1 PLZ file..")
             print("Please try again!")
             print("")
 
