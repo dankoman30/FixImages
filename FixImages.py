@@ -84,14 +84,18 @@ def imageFixerIntro():
     print("")
     print("Welcome to Documoto Image Fixer!")
     print("================================")
-    print("This is an application to embed Documoto callout bubbles onto the source raster images.")
-    print("The directory entered below must include documoto package files (*.plz).")
-    print("Files will be extracted, modifications made, and repackaged into the original archives.")
-    print("Publishing of files to the Documoto tenant will be optional.")
+    print("This application processes PLZ page files and automates several tasks, including:")
+    print("     * embed callout bubbles onto the source raster images so they appear properly in PDF catalog")
+    print("     * set page title in xml based on filename string")
+    print("     * link thumbnail images in xml")
+    print("     * publish linked thumbnails to Documoto tenant")
+    print("     * link hotpoint callouts to other pages (optional)")
+    print("     * publish page files to Documoto tenant (optional)")
+    print("Files will be extracted, modified, and repackaged into their original archives.")
     print("")
-    print("If you wish to publish THUMBNAIL images as well, they need to be located")
-    print("in the same root directory as the PLZ archives, for XML modification and")
-    print("automatic uploading of thumbnails to occur.")
+    print("If you wish to link and publish THUMBNAIL images, they need to be located")
+    print("in the same root directory as the PLZ archives, and have the same base filenames as")
+    print("their corresponding pages.")
     print("")
 
 def getRootDirectoryFromUser():
@@ -107,10 +111,10 @@ def getRootDirectoryFromUser():
 
     isValidDirectory = False
     while not isValidDirectory:
-        directory = filedialog.askdirectory() # use tkinter to pop up directory selection dialog
+        directory = filedialog.askdirectory(title = "Select the directory containing PLZ files (and PNG thumbnails)") # use tkinter to pop up directory selection dialog
         if directory == "": # user probably hit cancel on file selection dialog
             print("")
-            print("okay, whatever. bye!")
+            print("...umm, okay. BYE!")
             print("")
             quit() # quit the program completely
         if not ' ' in directory: # check to see if directory has spaces
@@ -128,15 +132,17 @@ def getRootDirectoryFromUser():
     return directory
 
 def defineDirectories(directory): # function to define directories used globally
-    global root_directory, temp_directory, new_file_directory # declare global variables
+    global root_directory, temp_directory, new_file_directory, backup_directory # declare global variables
     root_directory = directory
     temp_directory = os.path.abspath(root_directory + "/FixImages_temp") # define temporary directory name
-    new_file_directory = os.path.abspath(temp_directory + "/new_files") # define new_file temporary directory name
+    new_file_directory = os.path.abspath(temp_directory + "/new_files") # define new file temporary directory name
+    backup_directory = os.path.abspath(temp_directory + "/plz_backup") # define backup temporary directory name
     if not os.path.exists(new_file_directory): # make sure this directory doesn't exist (it shouldn't, but let's check anyway)
         print("")
         print(f'creating directory {new_file_directory} for temporary storage of new files.')
         print("")
         os.makedirs(new_file_directory) # recursively create new directory structure <root>/FixImages_temp/new_files
+        os.makedirs(backup_directory) # create PLZ backup directory
 
 def checkForThumbnails():
     # check root directory contents, warn user if no thumbnails are found (they can still be moved to the input directory by the user at this point if necessary)
@@ -181,6 +187,22 @@ def getUserPreferences():
     cleanup = input("Cleanup temporary files after repackaging archives? Type YES to delete: ").upper() == "YES"
     print("")
 
+def backupPLZFiles(): # back up original PLZ archives in temp folder prior to modification
+    print("")
+    for path, dirs, files in os.walk(os.path.abspath(root_directory)): # walk through directory and file structure in predefined path to find files
+        for plzFileName in fnmatch.filter(files, "*.plz"): # iterate through only the file that match plz file extension
+            plzFilePath = os.path.join(path, plzFileName) # join path and filename to get absolute file path
+            plzBackupFilePath = os.path.join(backup_directory, plzFileName) # join backup path and filename to get absolute file path (for backup)
+
+            # copy the original to the backup directory
+            print(f"Backing up {plzFileName}")
+            shutil.copyfile(plzFilePath, plzBackupFilePath)
+
+        break # prevent descending into subfolders
+    print("")
+    print(f"Original PLZ files have been backed up to {backup_directory}")
+    print("")
+    
 def extractArchives():
     # Extract all the contents of zip file in temporary subdirectory
     for path, dirs, files in os.walk(os.path.abspath(root_directory)): # walk through directory and file structure in predefined path to find files
@@ -461,6 +483,7 @@ def fixImages(): # run functions associated with fixImages process
     defineDirectories(getRootDirectoryFromUser()) # define global directories based on user-input directory path
     checkForThumbnails() # look for matching thumbnails
     getUserPreferences() # get user preferences for some optional functionality
+    backupPLZFiles() # backup the original PLZs prior to modification
     extractArchives() # unpack the PLZs
     modifyXMLfiles() # modify XML elements and attributes
     generateTemporarySVGfiles() # create temp SVG images in preparation for overlay onto rasters
