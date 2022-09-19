@@ -261,9 +261,15 @@ def modifyXMLfiles():
             XMLnamespaces = register_all_namespaces(xmlFilePath, xml_ET) # register namespaces, define a dictionary containing them
             XMLtree = xml_ET.parse(xmlFilePath) # parse xml file into xml tree
             XMLroot = XMLtree.getroot() # get the root tree (in this case, root is <Page>)
+
+            # for <Page>'s <Translation> subelement
             pageTranslationElement = XMLroot.find("Translation", XMLnamespaces) # define Translation element so we can set its attributes
             pageTranslationElement.set('name', pageTitleWithSpaces) # set name
             pageTranslationElement.set('description', pageTitleWithSpaces) # set description
+
+            # for <Page>'s <ProcessingInstructions> subelement
+            pageProcessingInstructionsElement = XMLroot.find("ProcessingInstructions", XMLnamespaces) # define <ProcessingInstructions> element so we can set its attributes
+            pageProcessingInstructionsElement.set('lockPartTranslations', "true") # lock part translations (to prevent overwriting old part descriptions with new ones.  to overwrite, change this value to "false")
 
             # if thumbnailFilePath exists, we can safely build and add the <Attachment> element and <Comments> subelement
             # to the root tree. <Comments> contains the filename.  We will need to upload this file also
